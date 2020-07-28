@@ -35,7 +35,7 @@ function tweetShot(context, replyFunc, twitter_url, trans_args={}) {
             if (trans_args.reply_html != undefined) html_ready.reply_html = consistHTML(trans_args.reply, trans_args);
             if (trans_args.group_info == undefined) trans_args.group_info = "翻译自日文"
             if (trans_args.group_html == undefined) trans_group_html = ['<div dir="auto" style="margin-top: 8px; margin-bottom: 10px;  margin-left: 10px;">',
-                                                                        parseString(trans_args.group_info, {'color' : '#1DA1F2', 'size' : '15px'}), '</div>'].join("");
+                                                                        parseString(trans_args.group_info, {'color' : '#1DA1F2', 'size' : '13px'}), '</div>'].join("");
             else trans_group_html = ['<div dir="auto" style="margin-top: 8px; margin-bottom: 10px; margin-left: 10px;">', trans_args.group_html, '</div>'].join("");
 
             html_ready.trans_article_html = trans_article_html;
@@ -68,7 +68,7 @@ function tweetShot(context, replyFunc, twitter_url, trans_args={}) {
                     node_trans_article.innerHTML = translation_html;
 
                     if (/^回复 \n@/.test(article.firstElementChild.innerText)) article = article.children[1].firstElementChild;
-                    else article = article.firstElementChild;
+                    else article = article.firstElementChild.firstElementChild;
 
                     trans_place.appendChild(node_group_info);
                     trans_place.appendChild(node_trans_article);
