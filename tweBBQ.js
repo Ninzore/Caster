@@ -34,7 +34,7 @@ function tweetShot(context, replyFunc, twitter_url, trans_args={}) {
 
             if (trans_args.reply_html != undefined) html_ready.reply_html = consistHTML(trans_args.reply, trans_args);
             if (trans_args.group_info == undefined) trans_args.group_info = "翻译自日文"
-            if (trans_args.group_html == undefined) trans_group_html = ['<div dir="auto" style="margin-top: 8px; margin-bottom: 10px;  margin-left: 10px;">',
+            if (trans_args.group_html == undefined) trans_group_html = ['<div dir="auto" style="margin-top: 8px; margin-bottom: 10px;  margin-left: 5px;">',
                                                                         parseString(trans_args.group_info, {'color' : '#1DA1F2', 'size' : '13px'}), '</div>'].join("");
             else trans_group_html = ['<div dir="auto" style="margin-top: 8px; margin-bottom: 10px; margin-left: 10px;">', trans_args.group_html, '</div>'].join("");
 
@@ -143,19 +143,17 @@ function parseString(text, styles=false) {
             part = text.substring(offset, emoji.index);
 
             string_html = (part.length > 0) ? crtString(part) : "";
-
-            emoji_html = (part.length > 0) ? 
+            emoji_html =
                 '<span dir="auto" class="css-901oao css-16my406 r-4qtqp9 r-ip8ujx r-sjv1od r-zw8f10 r-bnwqim r-h9hxbl">' +
                 `<div aria-label="${emoji[0]}" class="css-1dbjc4n r-xoduu5 r-1mlwlqe r-1d2f490 r-1udh08x r-u8s1d r-h9hxbl r-417010" style="height: 1.2em;">` +
                 '<div class="css-1dbjc4n r-1niwhzg r-vvn4in r-u6sd8q r-x3cy2q r-1p0dtai r-xoduu5 r-1pi2tsx r-1d2f490 r-u8s1d r-zchlnj r-ipm5af r-13qz1uu r-1wyyakw" ' +
                 `style="background-image: url(&quot;https://abs-0.twimg.com/emoji/v2/svg/${code}.svg&quot;);"></div>` +
-                `<img alt="${emoji[0]}" draggable="false" src="https://abs-0.twimg.com/emoji/v2/svg/${code}.svg" class="css-9pa8cd"></div></span>`
-                : "";
+                `<img alt="${emoji[0]}" draggable="false" src="https://abs-0.twimg.com/emoji/v2/svg/${code}.svg" class="css-9pa8cd"></div></span>`;
 
-            ready_html += (offset > emoji.index) ? emoji_html + string_html : string_html + emoji_html;
-            offset = emoji.index + 1;
+                ready_html += (offset > emoji.index) ? emoji_html + string_html : string_html + emoji_html;
+                offset = emoji.index + emoji[0].length;
         }
-        if (capture[capture.length-1].index+1 < text.length) ready_html += crtString(text.substr(capture[capture.length-1].index+1, text.length));
+        if (offset < text.length) ready_html += crtString(text.substr(offset, text.length-1));
     }
     else {
         ready_html = crtString(text);
@@ -207,8 +205,7 @@ function cookTweet(context, replyFunc) {
         else trans_args[style] = option[1];
     }
 
-    if (!'trans_html' in trans_args && trans_args.trans_html.length == 0 &&
-        !'translation' in trans_args && trans_args.translation.length == 0) {
+    if (!('trans_html' in trans_args) && !('translation' in trans_args)) {
         replyFunc(context, "你没加翻译", true);
         return;
     }
