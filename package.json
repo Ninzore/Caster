@@ -1,0 +1,43 @@
+{
+  "name": "bbq",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "pm2start": "pm2 start ecosystem.config.js",
+    "pm2stop": "pm2 stop ecosystem.config.js",
+    "pm2restart": "pm2 restart ecosystem.config.js",
+    "pm2log": "pm2 logs Wecab",
+    "test": "echo \\\"Error: no test specified\\\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ninzore/BBQ.git"
+  },
+  "author": "Ninzore",
+  "license": "AGPL-3.0",
+  "bugs": {
+    "url": "https://github.com/Ninzore/BBQ/issues"
+  },
+  "homepage": "https://github.com/Ninzore/BBQ#readme",
+  "dependencies": {
+    "axios": "^0.19.2",
+    "cq-websocket": "^2.1.1",
+    "esm": "^3.2.25",
+    "fs": "0.0.1-security",
+    "fs-extra": "^9.0.0",
+    "http": "0.0.1-security",
+    "lodash": "^4.17.19",
+    "lodash.combinations": "^18.10.0",
+    "minimist": "^1.2.5",
+    "mongodb": "^3.6.0",
+    "path": "^0.12.7",
+    "puppeteer": "^5.2.1",
+    "random-seed": "^0.3.0",
+    "seedrandom": "^3.0.5",
+    "sqlite": "^3.0.6",
+    "url": "^0.11.0"
+  },
+  "devDependencies": {},
+  "description": "Wecab汉化组特化型"
+}
