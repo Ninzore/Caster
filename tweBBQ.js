@@ -67,12 +67,12 @@ function tweetShot(context, replyFunc, twitter_url, trans_args={}) {
                     node_group_info.innerHTML = group_html;
                     node_trans_article.innerHTML = translation_html;
 
-                    if (/^回复 \n@/.test(article.firstElementChild.innerText)) article = article.children[1].firstElementChild;
-                    else article = article.firstElementChild.firstElementChild;
+                    if (/^回复 \n@/.test(article.firstElementChild.innerText)) article = article.children[1];
+                    else article = article.firstElementChild;
 
                     trans_place.appendChild(node_group_info);
                     trans_place.appendChild(node_trans_article);
-                    if (cover_origin) article.replaceWith(trans_place);
+                    if (cover_origin) article.firstElementChild.replaceWith(trans_place);
                     else article.appendChild(trans_place);
                 }
                 document.querySelector("#react-root").scrollIntoView();
@@ -114,12 +114,12 @@ function consistHTML(text, trans_args) {
     if (trans_args.trans_html != undefined) trans_article_html = trans_args.trans_html;
     else if (trans_args.style != undefined) trans_article_html = `<div style="${trans_args.style}">${text}</div>`
     else {
-        let font = (trans_args.font != undefined) ? trans_args.font : "";
+        let font_family = (trans_args.font_family != undefined) ? trans_args.font_family : "Microsoft YaHei";
         let size = (trans_args.size != undefined) ? trans_args.size : "";
         let color = (trans_args.color != undefined) ? trans_args.color : "black";
         let background = (trans_args.background != undefined) ? trans_args.background : "";
         let text_decoration = (trans_args.text_decoration != undefined) ? trans_args.text_decoration : "";
-        let styles = {font:font, size:size, color:color, background:background, text_decoration:text_decoration};
+        let styles = {font_family:font_family, size:size, color:color, background:background, text_decoration:text_decoration};
 
         trans_article_html = parseString(text, styles);
     }
@@ -129,7 +129,6 @@ function consistHTML(text, trans_args) {
 
 function parseString(text, styles=false) {
     let capture = [...text.matchAll(twemoji_reg)];
-
     let offset = 0;
     let ready_html = "";
     let code = "";
@@ -162,7 +161,7 @@ function parseString(text, styles=false) {
 
     function crtString(text_part) {
         return '<span dir="auto" class="css-901oao css-16my406 r-1qd0xha r-ad9z0x r-bcqeeo r-qvutc0" ' + 
-                ((styles) ? `style="font-family: ${styles.font}; font-size: ${styles.size}; text-decoration: ${styles.text_decoration}; color: ${styles.color}; background: ${styles.background};"` : "") +
+                ((styles) ? `style="font-family: ${styles.font_family}; font-size: ${styles.size}; text-decoration: ${styles.text_decoration}; color: ${styles.color}; background: ${styles.background};"` : "") +
                 `>${text_part}</span>`;
     }
 }
