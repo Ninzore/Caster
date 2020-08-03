@@ -115,7 +115,7 @@ function consistHTML(text, trans_args) {
     else if (trans_args.style != undefined) trans_article_html = `<div style="${trans_args.style}">${text}</div>`
     else {
         let font_family = (trans_args.font_family != undefined) ? trans_args.font_family : "Microsoft YaHei";
-        let size = (trans_args.size != undefined) ? trans_args.size : "";
+        let size = (trans_args.size != undefined) ? trans_args.size : "21px";
         let color = (trans_args.color != undefined) ? trans_args.color : "black";
         let background = (trans_args.background != undefined) ? trans_args.background : "";
         let text_decoration = (trans_args.text_decoration != undefined) ? trans_args.text_decoration : "";
@@ -161,16 +161,16 @@ function parseString(text, styles=false) {
 
     function crtString(text_part) {
         return '<span dir="auto" class="css-901oao css-16my406 r-1qd0xha r-ad9z0x r-bcqeeo r-qvutc0" ' + 
-                ((styles) ? `style="font-family: ${styles.font_family}; font-size: ${styles.size}; text-decoration: ${styles.text_decoration}; color: ${styles.color}; background: ${styles.background};"` : "") +
+                ((styles) ? `style="line-height: 1.45; font-family: ${styles.font_family}; font-size: ${styles.size}; text-decoration: ${styles.text_decoration}; color: ${styles.color}; background: ${styles.background};"` : "") +
                 `>${text_part}</span>`;
     }
 }
 
 function cookTweet(context, replyFunc) {
-    let {groups : {twitter_url, text}} = /(?<twitter_url>https:\/\/twitter.com\/.+?\/status\/\d+)[>＞](?<text>.+)/i.exec(context.message);
-
-    if (/https:\/\/twitter.com\/.+?\/status\/\d+[>＞]{2}/.test(context.message)) {
-        tweetShot(context, replyFunc, twitter_url, {translation : text.substring(1, text.length)});
+    let raw = context.message.replace(/\r\n/g, "/n");
+    let {groups : {twitter_url, text}} = /(?<twitter_url>https:\/\/twitter.com\/.+?\/status\/\d+)[>＞](?<text>.+)/.exec(raw);
+    if (/https:\/\/twitter.com\/.+?\/status\/\d+[>＞]{2}/.test(raw)) {
+        tweetShot(context, replyFunc, twitter_url, {translation : text.replace(/\/n/g, '<br>').substring(1, text.length)});
         return;
     }
     
@@ -195,13 +195,13 @@ function cookTweet(context, replyFunc) {
     }
 
     for (i in style_options) {
-        option = style_options[i].split(/(?<!<.+(style|class))[=＝]/).filter((noEmpty) => {return noEmpty != undefined});
-        style = option_map[option[0].replace(" ", "")] || option_map["error"];
+        option = style_options[i].split(/(?<!<.+(style))[=＝]/).filter((noEmpty) => {return noEmpty != undefined});
+        style = option_map[option[0].replace(/(\/n|\s)/g, "")] || option_map["error"];
         if (!style) {
             replyFunc(context, `没有${option[0]}这个选项`, true);
             return;
         }
-        else trans_args[style] = option[1];
+        else trans_args[style] = option[1].replace(/\/n/g, '<br>');
     }
 
     if (!('trans_html' in trans_args) && !('translation' in trans_args)) {
