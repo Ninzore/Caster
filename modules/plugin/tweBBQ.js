@@ -13,7 +13,7 @@ const defaultTemplate = {
         size : '21px',
         color : 'black',
         background : "",
-        font_family : "Microsoft YaHei",
+        font_family : "source-han-sans",
         text_decoration : ""
     },
     group : {
@@ -21,12 +21,17 @@ const defaultTemplate = {
         size : '15px',
         color : '#1DA1F2' ,
         background : "",
-        font_family : "Microsoft YaHei",
+        font_family : "source-han-sans",
         text_decoration : ""
-    }
+    },
+    cover_origin : false
 }
 
 let replyFunc = (context, msg, at = false) => {console.log(msg)};
+
+function cookTweReply(replyMsg) {
+    replyFunc = replyMsg;
+}
 
 /** 检查网络情况，如果连不上Twitter那后面都不用做了*/
 function checkConnection() {
@@ -39,7 +44,7 @@ function checkConnection() {
  * @param {string} twitter_url 单条Tweet网址
  * @param {object} trans_args 所有翻译相关选项
  */
-function tweetShot(context, replyFunc, twitter_url, trans_args={}) {
+function tweetShot(context, twitter_url, trans_args={}) {
     (async () => {
         let browser = await puppeteer.launch({
             args: ['--no-sandbox', '--disable-dev-shm-usage']
@@ -53,6 +58,7 @@ function tweetShot(context, replyFunc, twitter_url, trans_args={}) {
         await page.goto(twitter_url, {waitUntil : "networkidle0"});
 
         if (Object.keys(trans_args).length > 0) {
+            trans_args = fillTemplate(trans_args);
             let html_ready = {}
             let trans_article_html = trans_args.article_html == undefined ? setupHTML(trans_args.article.origin, trans_args.article) : trans_args.article_html;
             let trans_group_html = "";
@@ -121,21 +127,12 @@ function tweetShot(context, replyFunc, twitter_url, trans_args={}) {
             deviceScaleFactor: 1.6
         });
 
-        // await page.screenshot({
-        //     type : "jpeg",
-        //     quality : 100,
-        //     encoding : "base64",
-        //     clip : {x : tweet_box.x - 15, y : -3, width : tweet_box.width + 25, height : tweet_box.y + tweet_box.height + 12}
-        // }).then(pic64 => replyFunc(context, `[CQ:image,file=base64://${pic64}]`));
-
         await page.screenshot({
             type : "jpeg",
             quality : 100,
-            // encoding : "base64",
-            clip : {x : tweet_box.x - 15, y : -3, width : tweet_box.width + 25, height : tweet_box.y + tweet_box.height + 12},
-            path: `${__dirname}\\twitter.jpg`
-        // }).then(pic64 => replyFunc(context, `[CQ:image,file=base64://${pic64}]`));
-        });
+            encoding : "base64",
+            clip : {x : tweet_box.x - 15, y : -3, width : tweet_box.width + 25, height : tweet_box.y + tweet_box.height + 12}
+        }).then(pic64 => replyFunc(context, `[CQ:image,file=base64://${pic64}]`));
         await browser.close();
     })().catch(err => {
         console.error(err);
@@ -206,10 +203,10 @@ function setTemplate(unparsed) {
         "字体" : "font_family",
         "装饰" : "text_decoration",
         "style" : "css",
-        "汉化组大小" : "size",
-        "汉化组颜色" : "color",
-        "汉化组字体" : "font_family",
-        "汉化组装饰" : "text_decoration",
+        "汉化组大小" : "group_size",
+        "汉化组颜色" : "group_color",
+        "汉化组字体" : "group_font_family",
+        "汉化组装饰" : "group_text_decoration",
         "汉化组style" : "css",
         "背景" : "background",
         "覆盖" : "cover_origin",
@@ -223,15 +220,26 @@ function setTemplate(unparsed) {
         style = option_map[option[0].trim().replace(/\/n/g, "")] || option_map["error"];
 
         if (!style) err = `没有${option[0]}这个选项`;
+        else if (style == "article_html" || style == "group_html") trans_args[style] = option[1].trim().replace(/\/n/g, '<br>');
         else {
-            if (/^group_/.test(style)) trans_args.group[style] = option[1].trim().replace(/\/n/g, '<br>');
+            if (/^group_/.test(style)) trans_args.group[style.replace(/^group_(?!info)/, "")] = option[1].trim().replace(/\/n/g, '<br>');
+            else if (style == 'cover_origin') trans_args.cover_origin = true;
             else trans_args.article[style] = option[1].trim().replace(/\/n/g, '<br>');
         }
     }
 
-    if (/iframe/.test(trans_args.trans_html) || /iframe/.test(trans_args.group_html)) err = "你想干什么？";
-    if ('cover_origin' in trans_args) trans_args.cover_origin = true;
     return {trans_args : trans_args, err : err};
+}
+
+function fillTemplate(template = {}) {
+    return new Proxy(template, handler = {
+        get : (target, prop) => {
+            if (typeof(target[prop]) === 'object' && target[prop] != null) {
+                return new Proxy(target[prop], handler);
+            }
+            return target.hasOwnProperty(prop) ? target[prop] : defaultTemplate[prop];
+        }
+    });
 }
 
 function saveTemplate(context, username, unparsed_text) {
@@ -251,7 +259,7 @@ function saveTemplate(context, username, unparsed_text) {
         try {
             await coll.updateOne({username : username}, 
                 {$set : {trans_args}}, {upsert : true});
-            replyFunc(context, "成功了恭喜恭喜");
+            replyFunc(context, `成功保存了${username}的模板，恭喜恭喜`);
         } catch(err) {
             console.error(err);
             replyFunc(context, "出错惹");
@@ -270,7 +278,7 @@ function findTemplate(username) {
     });
 }
 
-function cookTweet(context, replyFunc) {
+function cookTweet(context) {
     let raw = context.message.replace(/\r\n/g, "/n");
     let {groups : {twitter_url, username, text}} = /(?<twitter_url>https:\/\/twitter.com\/(?<username>.+?)\/status\/\d+)[>＞](?<text>.+)/i.exec(raw);
 
@@ -278,7 +286,7 @@ function cookTweet(context, replyFunc) {
         findTemplate(username).then(trans_args => {
             if (!trans_args) trans_args = defaultTemplate;
             trans_args.article.origin = text.replace(/\/n/g, '<br>').substring(1);
-            tweetShot(context, replyFunc, twitter_url, trans_args);
+            tweetShot(context, twitter_url, trans_args);
         });
     }
     else {
@@ -287,21 +295,21 @@ function cookTweet(context, replyFunc) {
             replyFunc(context, err, true);
             return
         };
-        if (!('trans_html' in trans_args) && !('origin' in trans_args)) {
+        if (!('trans_html' in trans_args) && !('origin' in trans_args.article)) {
             replyFunc(context, "你没加翻译", true);
             return;
         }
         if ('cover_origin' in trans_args) trans_args.cover_origin = true;
         else trans_args.cover_origin = false;
     
-        tweetShot(context, replyFunc, twitter_url, trans_args);
+        tweetShot(context, twitter_url, trans_args);
     }
 }
 
-function complex(context, replyFunc) {
+function complex(context) {
     if (connection && /^(推特|Twitter)截图\s?https:\/\/twitter.com\/.+?\/status\/\d+/i.test(context.message)) {
         let twitter_url = /https:\/\/twitter.com\/.+?\/status\/\d+/i.exec(context.message)[0];
-        tweetShot(context, replyFunc, twitter_url);
+        tweetShot(context, twitter_url);
         return true;
     }
     else if (connection && /^烤制\s?https:\/\/twitter.com\/.+?\/status\/\d+.+/i.test(context.message)) {
@@ -315,8 +323,4 @@ function complex(context, replyFunc) {
     }
 }
 
-module.exports = {complex};
-
-let context = {message : `烤制https://twitter.com/megu_shinonome/status/1273530300971102209>>翻译=测试\r\n测试+\r\n字体=Helvetic Neue + 装饰=underline wavy yellow + 汉化组=测试汉化组`}
-// let context = {group_id : 123, message : `保存烤制模板https://twitter.com/megu_shinonome/status/1273530300971102209>字体=Helvetic Neue + 装饰=underline wavy yellow + 汉化组=测试汉化组`}
-complex(context, replyFunc)
+module.exports = {complex, cookTweReply};
