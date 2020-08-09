@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer');
 const mongodb = require('mongodb').MongoClient;
+const axios = require('axios');
 
 const db_port = 27017;
 const db_path = "mongodb://127.0.0.1:" + db_port;
@@ -10,7 +11,7 @@ let connection = true;
 const defaultTemplate = {
     article : {
         css : "",
-        size : '21px',
+        size : '24px',
         color : 'black',
         background : "",
         font_family : "source-han-sans",
@@ -18,13 +19,14 @@ const defaultTemplate = {
     },
     group : {
         css : "",
-        size : '15px',
+        size : '18px',
         color : '#1DA1F2' ,
         background : "",
         font_family : "source-han-sans",
         text_decoration : ""
     },
-    cover_origin : false
+    cover_origin : false,
+    no_group_info : false
 }
 
 let replyFunc = (context, msg, at = false) => {console.log(msg)};
@@ -64,12 +66,21 @@ function tweetShot(context, twitter_url, trans_args={}) {
             let trans_group_html = "";
 
             if (trans_args.article.reply != undefined) html_ready.reply_html = setupHTML(trans_args.article.reply, trans_args.article);
-            if (trans_args.group.group_info == undefined) trans_args.group.group_info = "翻译自日文"
 
-            trans_group_html = (trans_args.group_html == undefined) ? 
-                ['<div dir="auto" style="margin-top: 12px; margin-bottom: 12px; margin-left: 5px;">', 
-                setupHTML(trans_args.group.group_info, trans_args.group), '</div>'].join("")
-                : ['<div dir="auto" style="margin-top: 12px; margin-bottom: 12px; margin-left: 5px;">', trans_args.group_html, '</div>'].join("");
+            if (!trans_args.no_group_info) {
+                if (trans_args.group.group_info == undefined) trans_args.group.group_info = "翻译自日文";
+                else if (/^https/.test(trans_args.group.group_info)) {
+                    let img64 = 'data:image/jpeg;base64,' + await axios.get(trans_args.group.group_info, {responseType:'arraybuffer'})
+                                                                        .then(res => {return Buffer.from(res.data, 'binary').toString('base64')});
+                    trans_args.group.group_info = `<img style="height: auto; width: auto; max-height: ${img64}; max-width: 100%;" src="${img64}">`;
+                }
+    
+                trans_group_html = (trans_args.group_html == undefined) ? 
+                    ['<div dir="auto" style="margin-top: 12px; margin-bottom: 12px; margin-left: 5px;">', 
+                    setupHTML(trans_args.group.group_info, trans_args.group), '</div>'].join("")
+                    : ['<div dir="auto" style="margin-top: 12px; margin-bottom: 12px; margin-left: 5px;">', trans_args.group_html, '</div>'].join("");
+            }
+            else trans_group_html = "";
 
             html_ready.trans_article_html = trans_article_html;
             html_ready.trans_group_html = trans_group_html;
@@ -121,6 +132,7 @@ function tweetShot(context, twitter_url, trans_args={}) {
         }
         await page.waitFor(2000);
         let tweet_box = await page.$('article .css-1dbjc4n .r-vpgt9t').then((tweet_article) => {return tweet_article.boundingBox()});
+        
         await page.setViewport({
             width: 800,
             height: Math.round(tweet_box.y + 200),
@@ -133,10 +145,12 @@ function tweetShot(context, twitter_url, trans_args={}) {
             encoding : "base64",
             clip : {x : tweet_box.x - 15, y : -3, width : tweet_box.width + 25, height : tweet_box.y + tweet_box.height + 12}
         }).then(pic64 => replyFunc(context, `[CQ:image,file=base64://${pic64}]`));
+
         await browser.close();
     })().catch(err => {
         console.error(err);
         replyFunc(context, "出错惹", true);
+        browser.close();
         return;
     });
 }
@@ -165,11 +179,11 @@ function parseString(text, styles=false) {
 
             string_html = (part.length > 0) ? crtString(part) : "";
             emoji_html =
-                '<span dir="auto" class="css-901oao css-16my406 r-4qtqp9 r-ip8ujx r-sjv1od r-zw8f10 r-bnwqim r-h9hxbl">' +
-                `<div aria-label="${emoji[0]}" class="css-1dbjc4n r-xoduu5 r-1mlwlqe r-1d2f490 r-1udh08x r-u8s1d r-h9hxbl r-417010" style="height: 1.2em;">` +
-                '<div class="css-1dbjc4n r-1niwhzg r-vvn4in r-u6sd8q r-x3cy2q r-1p0dtai r-xoduu5 r-1pi2tsx r-1d2f490 r-u8s1d r-zchlnj r-ipm5af r-13qz1uu r-1wyyakw" ' +
-                `style="background-image: url(&quot;https://abs-0.twimg.com/emoji/v2/svg/${code}.svg&quot;);"></div>` +
-                `<img alt="${emoji[0]}" draggable="false" src="https://abs-0.twimg.com/emoji/v2/svg/${code}.svg" class="css-9pa8cd"></div></span>`;
+                ['<span dir="auto" class="css-901oao css-16my406 r-4qtqp9 r-ip8ujx r-sjv1od r-zw8f10 r-bnwqim r-h9hxbl">',
+                `<div aria-label="${emoji[0]}" class="css-1dbjc4n r-xoduu5 r-1mlwlqe r-1d2f490 r-1udh08x r-u8s1d r-h9hxbl r-417010" style="height: 1.2em;">`,
+                '<div class="css-1dbjc4n r-1niwhzg r-vvn4in r-u6sd8q r-x3cy2q r-1p0dtai r-xoduu5 r-1pi2tsx r-1d2f490 r-u8s1d r-zchlnj r-ipm5af r-13qz1uu r-1wyyakw" ',
+                `style="background-image: url(&quot;https://abs-0.twimg.com/emoji/v2/svg/${code}.svg&quot;);"></div>`,
+                `<img alt="${emoji[0]}" draggable="false" src="https://abs-0.twimg.com/emoji/v2/svg/${code}.svg" class="css-9pa8cd"></div></span>`].join("");
 
                 ready_html += (offset > emoji.index) ? emoji_html + string_html : string_html + emoji_html;
                 offset = emoji.index + emoji[0].length;
@@ -196,13 +210,14 @@ function setTemplate(unparsed) {
     let err = false;
     let option_map = {
         "翻译" : "origin",
-        "汉化组" : "group_info",
         "回复" : "reply",
         "颜色" : "color",
         "大小" : "size",
         "字体" : "font_family",
         "装饰" : "text_decoration",
         "style" : "css",
+        "汉化组" : "group_info",
+        "无汉化组" : "no_group_info",
         "汉化组大小" : "group_size",
         "汉化组颜色" : "group_color",
         "汉化组字体" : "group_font_family",
@@ -222,8 +237,10 @@ function setTemplate(unparsed) {
         if (!style) err = `没有${option[0]}这个选项`;
         else if (style == "article_html" || style == "group_html") trans_args[style] = option[1].trim().replace(/\/n/g, '<br>');
         else {
-            if (/^group_/.test(style)) trans_args.group[style.replace(/^group_(?!info)/, "")] = option[1].trim().replace(/\/n/g, '<br>');
+            if (/^group_/.test(style) && !/^\[CQ:image/.test(option[1])) trans_args.group[style.replace(/^group_(?!info)/, "")] = option[1].trim().replace(/\/n/g, '<br>');
             else if (style == 'cover_origin') trans_args.cover_origin = true;
+            else if (style == 'no_group_info') trans_args.no_group_info = true;
+            else if (style == 'group_info' && /^\[CQ:image/.test(option[1])) trans_args.group.group_info = option[3];
             else trans_args.article[style] = option[1].trim().replace(/\/n/g, '<br>');
         }
     }
@@ -234,8 +251,13 @@ function setTemplate(unparsed) {
 function fillTemplate(template = {}) {
     return new Proxy(template, handler = {
         get : (target, prop) => {
-            if (typeof(target[prop]) === 'object' && target[prop] != null) {
-                return new Proxy(target[prop], handler);
+            if (typeof(defaultTemplate[prop]) === 'object') {
+                return !Reflect.has(target, prop) ? defaultTemplate[prop] :
+                    new Proxy(target[prop], handler = {
+                        get : (deep_target, deep_prop) => {
+                            return Reflect.has(deep_target, deep_prop) ? deep_target[deep_prop] : defaultTemplate[prop][deep_prop];
+                        }
+                    });
             }
             return target.hasOwnProperty(prop) ? target[prop] : defaultTemplate[prop];
         }
@@ -299,8 +321,6 @@ function cookTweet(context) {
             replyFunc(context, "你没加翻译", true);
             return;
         }
-        if ('cover_origin' in trans_args) trans_args.cover_origin = true;
-        else trans_args.cover_origin = false;
     
         tweetShot(context, twitter_url, trans_args);
     }
