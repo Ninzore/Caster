@@ -70,15 +70,17 @@ function tweetShot(context, twitter_url, trans_args={}) {
             if (!trans_args.no_group_info) {
                 if (trans_args.group.group_info == undefined) trans_args.group.group_info = "翻译自日文";
                 else if (/^https/.test(trans_args.group.group_info)) {
+                    trans_args.group.size = /\d+/.exec(trans_args.group.size)[1] <= 20 ? '27px' : trans_args.group.size;
                     let img64 = 'data:image/jpeg;base64,' + await axios.get(trans_args.group.group_info, {responseType:'arraybuffer'})
                                                                         .then(res => {return Buffer.from(res.data, 'binary').toString('base64')});
-                    trans_args.group.group_info = `<img style="height: auto; width: auto; max-height: ${img64}; max-width: 100%;" src="${img64}">`;
+                    trans_group_html = `<img style="margin: 5px 0px 0px 5px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
                 }
-    
-                trans_group_html = (trans_args.group_html == undefined) ? 
-                    ['<div dir="auto" style="margin-top: 12px; margin-bottom: 12px; margin-left: 5px;">', 
-                    setupHTML(trans_args.group.group_info, trans_args.group), '</div>'].join("")
-                    : ['<div dir="auto" style="margin-top: 12px; margin-bottom: 12px; margin-left: 5px;">', trans_args.group_html, '</div>'].join("");
+                else {
+                    trans_group_html = (trans_args.group_html == undefined) ? 
+                        ['<div dir="auto" style="margin: 8px 0px 2px 5px;">', 
+                        setupHTML(trans_args.group.group_info, trans_args.group), '</div>'].join("")
+                        : ['<div dir="auto" style="margin: 8px 0px 2px 5px;">', trans_args.group_html, '</div>'].join("");
+                }
             }
             else trans_group_html = "";
 
@@ -180,7 +182,7 @@ function parseString(text, styles=false) {
             string_html = (part.length > 0) ? crtString(part) : "";
             emoji_html =
                 ['<span dir="auto" class="css-901oao css-16my406 r-4qtqp9 r-ip8ujx r-sjv1od r-zw8f10 r-bnwqim r-h9hxbl">',
-                `<div aria-label="${emoji[0]}" class="css-1dbjc4n r-xoduu5 r-1mlwlqe r-1d2f490 r-1udh08x r-u8s1d r-h9hxbl r-417010" style="height: 1.2em;">`,
+                `<div aria-label="${emoji[0]}" class="css-1dbjc4n r-xoduu5 r-1mlwlqe r-1d2f490 r-1udh08x r-u8s1d r-h9hxbl r-417010" style="height: 1.3em;">`,
                 '<div class="css-1dbjc4n r-1niwhzg r-vvn4in r-u6sd8q r-x3cy2q r-1p0dtai r-xoduu5 r-1pi2tsx r-1d2f490 r-u8s1d r-zchlnj r-ipm5af r-13qz1uu r-1wyyakw" ',
                 `style="background-image: url(&quot;https://abs-0.twimg.com/emoji/v2/svg/${code}.svg&quot;);"></div>`,
                 `<img alt="${emoji[0]}" draggable="false" src="https://abs-0.twimg.com/emoji/v2/svg/${code}.svg" class="css-9pa8cd"></div></span>`].join("");
