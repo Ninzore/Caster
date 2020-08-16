@@ -48,19 +48,19 @@ function checkConnection() {
  * @param {object} trans_args 所有翻译相关选项
  */
 async function tweetShot(context, twitter_url, trans_args={}) {
-    try {
-        let browser = await puppeteer.launch({
-            args : ['--no-sandbox', '--disable-dev-shm-usage']
-        });
-        let page = await browser.newPage();
-        await page.setExtraHTTPHeaders({
-            "user-agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.163 Safari/537.36",
-            "accept-language" : "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,ja;q=0.6",
-            "DNT" : "1"
-        });
-        await page.emulateTimezone('Asia/Tokyo');
-        await page.goto(twitter_url, {waitUntil : "networkidle0"});
+    let browser = await puppeteer.launch({
+        args : ['--no-sandbox', '--disable-dev-shm-usage']
+    });
+    let page = await browser.newPage();
+    await page.setExtraHTTPHeaders({
+        "user-agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.163 Safari/537.36",
+        "accept-language" : "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,ja;q=0.6",
+        "DNT" : "1"
+    });
+    await page.emulateTimezone('Asia/Tokyo');
+    await page.goto(twitter_url, {waitUntil : "networkidle0"});
 
+    try {
         if (Object.keys(trans_args).length > 0) {
             let html_ready = await setupHTML(trans_args);
             let video_poster = await blockVideo(twitter_url);
@@ -112,29 +112,29 @@ async function tweetShot(context, twitter_url, trans_args={}) {
                 footer.parentNode.removeChild(footer);
             });
         }
-        await page.waitFor(2000);
-        let tweet_box = await page.$('article .css-1dbjc4n .r-vpgt9t').then((tweet_article) => {return tweet_article.boundingBox()});
-        
-        await page.setViewport({
-            width: 800,
-            height: Math.round(tweet_box.y + 200),
-            deviceScaleFactor: 1.6
-        });
-        await page.screenshot({
-            type : "jpeg",
-            quality : 100,
-            encoding : "base64",
-            clip : {x : tweet_box.x - 15, y : -2, width : tweet_box.width + 27, height : tweet_box.y + tweet_box.height + 12}
-        }).then(pic64 => replyFunc(context, `[CQ:image,file=base64://${pic64}]`));
-
-        await browser.close();
-    }
-    catch(err) {
+    } catch(err) {
         console.error(err);
         replyFunc(context, "出错惹", true);
-        browser.close();
+        await browser.close();
         return;
     }
+    
+    await page.waitFor(2000);
+    let tweet_box = await page.$('article .css-1dbjc4n .r-vpgt9t').then((tweet_article) => {return tweet_article.boundingBox()});
+    
+    await page.setViewport({
+        width: 800,
+        height: Math.round(tweet_box.y + 200),
+        deviceScaleFactor: 1.6
+    });
+    await page.screenshot({
+        type : "jpeg",
+        quality : 100,
+        encoding : "base64",
+        clip : {x : tweet_box.x - 15, y : -2, width : tweet_box.width + 27, height : tweet_box.y + tweet_box.height + 12}
+    }).then(pic64 => replyFunc(context, `[CQ:image,file=base64://${pic64}]`));
+
+    await browser.close();
 }
 
 function blockVideo(twitter_url) {
@@ -209,7 +209,7 @@ function parseString(text, styles=false) {
         let code = "";
         let part = "";
 
-        for (emoji of capture) {
+        for (let emoji of capture) {
             code = emoji[0].codePointAt(0).toString(16);
             part = text.substring(offset, emoji.index);
             string_html = (part.length > 0) ? crtString(part) : "";
@@ -266,7 +266,7 @@ function setTemplate(unparsed) {
         "error" : false
     }
 
-    for (i in style_options) {
+    for (let i in style_options) {
         option = style_options[i].split(/(?<!<.+(style))[=＝]/).filter((noEmpty) => {return noEmpty != undefined});
         style = option_map[option[0].trim().replace(/\/n/g, "")] || option_map["error"];
 
@@ -338,27 +338,39 @@ function findTemplate(username) {
 
 function cookTweet(context) {
     let raw = context.message.replace(/\r\n/g, "/n");
-    let {groups : {twitter_url, username, text}} = /(?<twitter_url>https:\/\/twitter.com\/(?<username>.+?)\/status\/\d+)[>＞](?<text>.+)/i.exec(raw);
+    try {
+        let {groups : {twitter_url, username, text}} = /(?<twitter_url>https:\/\/twitter.com\/(?<username>.+?)\/status\/\d+)[>＞](?<text>.+)/i.exec(raw);
+        findTemplate(username).then(saved_trans_args => {
+            if (!saved_trans_args) saved_trans_args = defaultTemplate;
+            
+            if (/https:\/\/twitter.com\/.+?\/status\/\d+[>＞]{2}/.test(raw)) {
+                saved_trans_args.article.origin = text.replace(/\/n/g, '<br>').substring(1);
+                tweetShot(context, twitter_url, saved_trans_args);
+            }
+            else {
+                let {trans_args, err} = setTemplate(text);
+                if (err) {
+                    replyFunc(context, err, true);
+                    return
+                };            
 
-    if (/https:\/\/twitter.com\/.+?\/status\/\d+[>＞]{2}/.test(raw)) {
-        findTemplate(username).then(trans_args => {
-            if (!trans_args) trans_args = defaultTemplate;
-            trans_args.article.origin = text.replace(/\/n/g, '<br>').substring(1);
-            tweetShot(context, twitter_url, trans_args);
+                for (let key in saved_trans_args) {
+                    if (typeof(saved_trans_args[key]) == "object") {
+                        trans_args[key] = Object.assign(saved_trans_args[key], trans_args[key]);
+                    }
+                    else trans_args[key] = trans_args[key] != undefined ? trans_args[key] : saved_trans_args[key];
+                }
+
+                if (!('trans_html' in trans_args) && !('origin' in trans_args.article)) {
+                    replyFunc(context, "你没加翻译", true);
+                    return;
+                }
+            
+                tweetShot(context, twitter_url, trans_args);
+            }
         });
-    }
-    else {
-        let {trans_args, err} = setTemplate(text);
-        if (err) {
-            replyFunc(context, err, true);
-            return
-        };
-        if (!('trans_html' in trans_args) && !('origin' in trans_args.article)) {
-            replyFunc(context, "你没加翻译", true);
-            return;
-        }
-    
-        tweetShot(context, twitter_url, trans_args);
+    } catch(err) {
+        replyFunc(context, "出错惹");
     }
 }
 
@@ -376,6 +388,7 @@ function complex(context) {
         let plain = context.message.replace(/\r\n/g, "");
         let {groups : {username, unparsed}} = /https:\/\/twitter.com\/(?<username>.+?)(?:\/status\/\d+)?[>＞](?<unparsed>.+)/.exec(plain);
         saveTemplate(context, username, unparsed);
+        return true;
     }
 }
 
