@@ -77,8 +77,10 @@ async function tweetShot(context, twitter_url, trans_args={}) {
                 if (video_poster) article.children[1].firstElementChild.firstElementChild.innerHTML = video_poster;
 
                 if (html_ready.reply_html != undefined) {
-                    article = document.querySelectorAll('article')[1].querySelector('[role=group]').parentElement;
-                    insert(article, html_ready.reply_html, html_ready.trans_group_html, cover_origin);
+                    for (let i = 0; i < html_ready.reply_html.length; i++) {
+                        article = document.querySelectorAll('article')[i+1].querySelector('[role=group]').parentElement;
+                        insert(article, html_ready.reply_html[i], html_ready.trans_group_html, cover_origin);
+                    }
                 }
 
                 function insert(article, translation_html, group_html, cover_origin=false) {
@@ -98,6 +100,7 @@ async function tweetShot(context, twitter_url, trans_args={}) {
 
                     trans_place.appendChild(node_group_info);
                     trans_place.appendChild(node_trans_article);
+
                     if (cover_origin) article.firstElementChild.replaceWith(trans_place);
                     else article.appendChild(trans_place);
                 }
@@ -170,8 +173,10 @@ async function setupHTML(trans_args) {
     let html_ready = {}
 
     html_ready.trans_article_html = trans_args.article_html == undefined ? decoration(trans_args.article.origin, trans_args.article) : trans_args.article_html;
-    if (trans_args.article.reply != undefined) html_ready.reply_html = decoration(trans_args.article.reply, trans_args.article);
-
+    if (trans_args.article.reply != undefined) {
+        html_ready.reply_html = [];
+        for (let reply of trans_args.article.reply) html_ready.reply_html.push(decoration(reply, trans_args.article));
+    }
     if (!trans_args.no_group_info) {
         if (/^https/.test(trans_args.group.group_info)) {
             trans_args.group.size = /\d+/.exec(trans_args.group.size)[1] <= 24 ? '30px' : trans_args.group.size;
@@ -277,6 +282,11 @@ function setTemplate(unparsed) {
             else if (style == 'cover_origin') trans_args.cover_origin = true;
             else if (style == 'no_group_info') trans_args.no_group_info = true;
             else if (style == 'group_info' && /^\[CQ:image/.test(option[1])) trans_args.group.group_info = option[3];
+            else if (style == 'reply') {
+                option[1] = option[1].trim().replace(/\/n/g, '<br>');
+                if (!Array.isArray(trans_args.article.reply)) trans_args.article.reply = [option[1]];
+                else trans_args.article.reply.push(option[1]);
+            }
             else trans_args.article[style] = option[1].trim().replace(/\/n/g, '<br>');
         }
     }
@@ -380,7 +390,7 @@ function complex(context) {
         tweetShot(context, twitter_url);
         return true;
     }
-    else if (connection && /^烤制\s?https:\/\/twitter.com\/.+?\/status\/\d+.+/i.test(context.message)) {
+    else if (connection && /^烤制\s?https:\/\/twitter.com\/.+?\/status\/\d+.+[>＞]{2}/i.test(context.message)) {
         cookTweet(context, replyFunc);
         return true;
     }
