@@ -11,7 +11,7 @@ let connection = true;
 const defaultTemplate = {
     article : {
         css : "",
-        size : '23px',
+        size : 'inherit',
         color : 'black',
         background : "",
         font_family : "source-han-sans",
@@ -193,16 +193,16 @@ async function setupHTML(trans_args) {
     }
     if (!trans_args.no_group_info) {
         if (/^https/.test(trans_args.group.group_info)) {
-            trans_args.group.size = /\d+/.exec(trans_args.group.size)[1] <= 24 ? '30px' : trans_args.group.size;
+            trans_args.group.size = trans_args.group.size == "inherit" ? '2em' : trans_args.group.size;
             let img64 = "data:image/jpeg;base64," + await axios.get(trans_args.group.group_info, {responseType:'arraybuffer'})
                                                                 .then(res => {return Buffer.from(res.data, 'binary').toString('base64')});
-            html_ready.trans_group_html = `<img style="margin: 5px 0px 0px 5px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
+            html_ready.trans_group_html = `<img style="margin: 5px 0px 5px 0px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
         }
         else {
             html_ready.trans_group_html = (trans_args.group_html == undefined) ? 
-                ['<div dir="auto" style="margin: 5px 0px 2px 3px;">', 
+                ['<div dir="auto" style="margin: 5px 0px 2px 2px;">', 
                 decoration(trans_args.group.group_info, trans_args.group), '</div>'].join("")
-                : ['<div dir="auto" style="margin: 5px 0px 2px 3px;">', trans_args.group_html, '</div>'].join("");
+                : ['<div dir="auto" style="margin: 5px 0px 2px 2px;">', trans_args.group_html, '</div>'].join("");
         }
     }
     else html_ready.trans_group_html = "";
@@ -218,10 +218,12 @@ function decoration(text, template) {
 
 function parseString(text, styles=false) {
     let capture = [...text.matchAll(twemoji_reg)];
-
     let ready_html = "";
     let string_html = "";
     let emoji_html = "";
+
+    text = text.replace(/(\S*)(#\S+)/gi,'$1<span style="color:#1DA1F2;">$2</span>')
+                .replace(/((https?|ftp|file):\/\/[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|])/g,'<span style="color:#1DA1F2;">$1</span>');
 
     if (capture[0] != undefined) {
         let offset = 0;
