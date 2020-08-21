@@ -9,8 +9,6 @@ import minimist from 'minimist';
 import broadcast from './modules/broadcast';
 import bilibili from './modules/plugin/bilibili';
 import twitter from './modules/plugin/twitter';
-import dice from './modules/plugin/dice';
-import pretendLearn from "./modules/plugin/pretendLearn";
 import translate from "./modules/plugin/translate";
 import tweBBQ from "./modules/plugin/tweBBQ";
 
@@ -165,16 +163,7 @@ bot.connect();
 //自动帮自己签到（诶嘿
 //以及每日需要更新的一些东西
 setInterval(() => {
-    if (bot.isReady() && logger.canAdminSign()) {
-        setTimeout(() => {
-            if (setting.admin > 0) {
-                bot('send_like', {
-                    user_id: setting.admin,
-                    times: 10,
-                });
-            }
-        }, 60 * 1000);
-    }
+    if (bot.isReady() && logger.canAdminSign()) {}
 }, 60 * 60 * 1000);
 
 function notice(context) {
@@ -222,17 +211,7 @@ function privateAndAtMsg(e, context) {
         e.stopPropagation();
         return;
     }
-    if (signReg.exec(context.message)) {
-        //签到
-        e.stopPropagation();
-        if (logger.canSign(context.user_id)) {
-            bot('send_like', {
-                user_id: context.user_id,
-                times: 10,
-            });
-            return setting.replys.sign;
-        } else return setting.replys.signed;
-    } else {
+    else {
         //其他指令
         return setting.replys.default;
     }
@@ -268,11 +247,6 @@ function groupMsg(e, context) {
         e.stopPropagation();
         return;
     }
-    else if (/^\.dice.+/g.exec(context.message)) {
-        dice(context, replyMsg, rand);
-        e.stopPropagation();
-        return;
-    }
     else if (setting.repeat.enable) {
         //复读（
         //随机复读，rptLog得到当前复读次数
@@ -287,8 +261,6 @@ function groupMsg(e, context) {
             setTimeout(() => {
                 replyMsg(context, context.message);
             }, 1000);
-        } else {
-            if (getRand() <= 80) pretendLearn.talk(context);
         }
     }
 }
