@@ -85,6 +85,10 @@ async function tweetShot(context, twitter_url, trans_args={}) {
 
                 if (video_poster) article.children[1].firstElementChild.firstElementChild.innerHTML = video_poster;
 
+                if (trans_args.article.retweet != undefined) {
+                    article.children[1].firstElementChild.firstElementChild.children[1].firstElementChild.children[1].innerText = trans_args.article.retweet;
+                }
+
                 if (html_ready.reply_html != undefined) {
                     for (let i = 0; i < html_ready.reply_html.length; i++) {
                         if (i+1 >= articles.length) break;
@@ -150,7 +154,7 @@ async function tweetShot(context, twitter_url, trans_args={}) {
         encoding : "base64",
         clip : {x : tweet_box.x - 15, y : -2, width : tweet_box.width + 27, height : tweet_box.y + tweet_box.height + 12}
     }).then(pic64 => replyFunc(context, `[CQ:image,file=base64://${pic64}]`));
-
+    
     await browser.close();
 }
 
@@ -280,6 +284,7 @@ function setTemplate(unparsed) {
         "汉化组装饰" : "group_text_decoration",
         "汉化组style" : "css",
         "背景" : "background",
+        "引用" : "retweet",
         "覆盖" : "cover_origin",
         "无汉化组" : "no_group_info",
         "回复中覆盖" : "cover_origin_in_reply",
