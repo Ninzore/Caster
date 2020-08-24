@@ -12,7 +12,7 @@ const defaultTemplate = {
     article : {
         css : "",
         size : 'inherit',
-        color : 'black',
+        color : 'inherit',
         background : "",
         font_family : "source-han-sans",
         text_decoration : ""
@@ -20,8 +20,8 @@ const defaultTemplate = {
     group : {
         group_info : "翻译自日文",
         css : "",
-        size : '16px',
-        color : '#1DA1F2' ,
+        size : '15px',
+        color : 'rgb(27, 149, 224)' ,
         background : "",
         font_family : "source-han-sans",
         text_decoration : ""
@@ -106,9 +106,9 @@ async function tweetShot(context, twitter_url, trans_args={}) {
                     let node_group_info = document.createElement('div');
                     let node_trans_article = document.createElement('div');
 
-                    trans_place.setAttribute("dir", "auto");
-                    node_group_info.setAttribute("dir", "auto");
-                    node_trans_article.setAttribute("dir", "auto");
+                    trans_place.dir = "auto";
+                    node_group_info.dir = "auto";
+                    node_trans_article.dir = "auto";
 
                     node_group_info.innerHTML = group_html;
                     node_trans_article.innerHTML = translation_html;
@@ -191,6 +191,8 @@ async function setupHTML(trans_args) {
     let html_ready = {}
 
     html_ready.trans_article_html = trans_args.article_html == undefined ? decoration(trans_args.article.origin, trans_args.article) : trans_args.article_html;
+    html_ready.trans_article_html = `<div class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0">${html_ready.trans_article_html}</div>`
+
     if (trans_args.article.reply != undefined) {
         html_ready.reply_html = [];
         for (let reply of trans_args.article.reply) html_ready.reply_html.push(decoration(reply, trans_args.article));
@@ -200,13 +202,14 @@ async function setupHTML(trans_args) {
             trans_args.group.size = trans_args.group.size == "inherit" ? '2em' : trans_args.group.size;
             let img64 = "data:image/jpeg;base64," + await axios.get(trans_args.group.group_info, {responseType:'arraybuffer'})
                                                                 .then(res => {return Buffer.from(res.data, 'binary').toString('base64')});
-            html_ready.trans_group_html = `<img style="margin: 5px 0px 5px 0px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
+            html_ready.trans_group_html = `<img style="margin: 2px 0px 5px 0px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
         }
         else {
             html_ready.trans_group_html = (trans_args.group_html == undefined) ? 
-                ['<div dir="auto" style="margin: 5px 0px 2px 2px;">', 
+                ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0" style="margin: 0px 0px 2px 1px;">', 
                 decoration(trans_args.group.group_info, trans_args.group), '</div>'].join("")
-                : ['<div dir="auto" style="margin: 5px 0px 2px 2px;">', trans_args.group_html, '</div>'].join("");
+                : ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0" \
+                style="margin: 0px 0px 2px 1px;">', trans_args.group_html, '</div>'].join("");
         }
     }
     else html_ready.trans_group_html = "";
@@ -214,8 +217,10 @@ async function setupHTML(trans_args) {
 }
 
 function decoration(text, template) {
-    let ready_html = ('css' in template && template.css.length > 1) ? 
-        `<div style="${template.css}">${parseString(text, template)}</div>` : parseString(text, template);
+    let css = ('css' in template && template.css.length > 1) ? template.css
+        : template ? `font-family: ${template.font_family}; font-size: ${template.size}; text-decoration: ${template.text_decoration}; color: ${template.color}; background: ${template.background};` : "";
+    let ready_html = 
+        `<div style="all: inherit; ${css}">${parseString(text, template)}</div>`;
 
     return ready_html;
 }
@@ -239,9 +244,8 @@ function parseString(text, styles=false) {
             part = text.substring(offset, emoji.index);
             string_html = (part.length > 0) ? crtString(part) : "";
             emoji_html =
-                [`<span dir="auto" class="css-901oao css-16my406 r-4qtqp9 r-ip8ujx r-sjv1od r-zw8f10 r-bnwqim r-h9hxbl" style="font-size: ${styles.size}; vertical-align: -0.11em">`,
-                `<div aria-label="${emoji[0]}" class="css-1dbjc4n r-xoduu5 r-1mlwlqe r-1d2f490 r-1udh08x r-u8s1d r-h9hxbl r-417010"`,
-                `style="height: ${styles.size}; width: ${styles.size}; margin: 0em 0.1em 0em 0.1em;">`,
+                [`<span dir="auto" class="css-901oao css-16my406 r-4qtqp9 r-ip8ujx r-sjv1od r-zw8f10 r-bnwqim r-h9hxbl">`,
+                `<div aria-label="${emoji[0]}" class="css-1dbjc4n r-xoduu5 r-1mlwlqe r-1d2f490 r-1udh08x r-u8s1d r-h9hxbl r-417010" style="height: 1.2em;">`,
                 '<div class="css-1dbjc4n r-1niwhzg r-vvn4in r-u6sd8q r-x3cy2q r-1p0dtai r-xoduu5 r-1pi2tsx r-1d2f490 r-u8s1d r-zchlnj r-ipm5af r-13qz1uu r-1wyyakw"',
                 `style="background-image: url(&quot;https://abs-0.twimg.com/emoji/v2/svg/${code}.svg&quot;);"></div>`,
                 `<img alt="${emoji[0]}" draggable="false" src="https://abs-0.twimg.com/emoji/v2/svg/${code}.svg" class="css-9pa8cd"></div></span>`].join("");
@@ -255,11 +259,9 @@ function parseString(text, styles=false) {
         ready_html = crtString(text);
     }
     return ready_html;
-
+    
     function crtString(text_part) {
-        return '<span dir="auto" class="css-901oao css-16my406 r-1qd0xha r-ad9z0x r-bcqeeo r-qvutc0" ' + 
-                ((styles) ? `style="line-height: 1.45; font-family: ${styles.font_family}; font-size: ${styles.size}; text-decoration: ${styles.text_decoration}; color: ${styles.color}; background: ${styles.background};"` : "") +
-                `>${text_part}</span>`;
+        return `<span dir="auto" style="all:inherit;">${text_part}</span>`;
     }
 }
 
