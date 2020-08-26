@@ -72,6 +72,9 @@ async function tweetShot(context, twitter_url, trans_args={}) {
             if (trans_args.no_group_info != undefined && trans_args.no_group_info_in_reply == undefined) {
                 trans_args.no_group_info_in_reply = trans_args.no_group_info;
             }
+            if (trans_args.article.retweet != undefined) {
+                trans_args.article.retweet = `<div class="css-901oao">${decoration(trans_args.article.retweet, trans_args.article)}</div>`;
+            }
 
             await page.evaluate((html_ready, trans_args, video_poster) => {
                 let banner = document.getElementsByTagName('header')[0];
@@ -86,7 +89,13 @@ async function tweetShot(context, twitter_url, trans_args={}) {
                 if (video_poster) article.children[1].firstElementChild.firstElementChild.innerHTML = video_poster;
 
                 if (trans_args.article.retweet != undefined) {
-                    article.children[1].firstElementChild.firstElementChild.children[1].firstElementChild.children[1].innerText = trans_args.article.retweet;
+                    article.children[1].firstElementChild.firstElementChild.children[1].firstElementChild.children[1].firstElementChild.innerHTML 
+                         = trans_args.article.retweet;
+                }
+
+                if (trans_args.article.choice != undefined) {
+                    let choice_list = article.children[1].querySelectorAll("span");
+                    for (let i = 0; i < choice_list.length/2; i++) choice_list[2*i].innerText = trans_args.article.choice[i];
                 }
 
                 if (html_ready.reply_html != undefined) {
@@ -154,7 +163,7 @@ async function tweetShot(context, twitter_url, trans_args={}) {
         encoding : "base64",
         clip : {x : tweet_box.x - 15, y : -2, width : tweet_box.width + 27, height : tweet_box.y + tweet_box.height + 12}
     }).then(pic64 => replyFunc(context, `[CQ:image,file=base64://${pic64}]`));
-    
+
     await browser.close();
 }
 
@@ -202,14 +211,14 @@ async function setupHTML(trans_args) {
             trans_args.group.size = trans_args.group.size == "inherit" ? '2em' : trans_args.group.size;
             let img64 = "data:image/jpeg;base64," + await axios.get(trans_args.group.group_info, {responseType:'arraybuffer'})
                                                                 .then(res => {return Buffer.from(res.data, 'binary').toString('base64')});
-            html_ready.trans_group_html = `<img style="margin: 2px 0px 5px 0px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
+            html_ready.trans_group_html = `<img style="margin: 2px 0px 0px 0px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
         }
         else {
             html_ready.trans_group_html = (trans_args.group_html == undefined) ? 
-                ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0" style="margin: 0px 0px 2px 1px;">', 
+                ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0" style="margin: 0px 0px 3px 1px;">', 
                 decoration(trans_args.group.group_info, trans_args.group), '</div>'].join("")
                 : ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0" \
-                style="margin: 0px 0px 2px 1px;">', trans_args.group_html, '</div>'].join("");
+                style="margin: 0px 0px 3px 1px;">', trans_args.group_html, '</div>'].join("");
         }
     }
     else html_ready.trans_group_html = "";
@@ -225,20 +234,20 @@ function decoration(text, template) {
     return ready_html;
 }
 
-function parseString(text, styles=false) {
+function parseString(text) {
+    text = text.replace(/(\S*)(#\S+)/gi,'$1<span style="color:#1DA1F2;">$2</span>')
+                .replace(/((https?|ftp|file):\/\/[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|])/g,'<span style="color:#1DA1F2;">$1</span>');
+                
     let capture = [...text.matchAll(twemoji_reg)];
     let ready_html = "";
     let string_html = "";
     let emoji_html = "";
 
-    text = text.replace(/(\S*)(#\S+)/gi,'$1<span style="color:#1DA1F2;">$2</span>')
-                .replace(/((https?|ftp|file):\/\/[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|])/g,'<span style="color:#1DA1F2;">$1</span>');
-
     if (capture[0] != undefined) {
         let offset = 0;
         let code = "";
         let part = "";
-
+        
         for (let emoji of capture) {
             code = emoji[0].codePointAt(0).toString(16);
             part = text.substring(offset, emoji.index);
@@ -278,15 +287,16 @@ function setTemplate(unparsed) {
         "大小" : "size",
         "字体" : "font_family",
         "装饰" : "text_decoration",
-        "style" : "css",
+        "css" : "css",
         "汉化组" : "group_info",
         "汉化组大小" : "group_size",
         "汉化组颜色" : "group_color",
         "汉化组字体" : "group_font_family",
         "汉化组装饰" : "group_text_decoration",
-        "汉化组style" : "css",
+        "汉化组css" : "group_css",
         "背景" : "background",
         "引用" : "retweet",
+        "选项" : "choice",
         "覆盖" : "cover_origin",
         "无汉化组" : "no_group_info",
         "回复中覆盖" : "cover_origin_in_reply",
@@ -306,12 +316,15 @@ function setTemplate(unparsed) {
             if (style == "origin" || style == "reply" || style == "group_info");
             else if (option[1]) option[1].trim().replace(/<br>/g, "");
 
-            if (/^group_/.test(style) && !/^\[CQ:image/.test(option[1])) trans_args.group[style.replace(/^group_(?!info)/, "")] = option[1];
+            if (/^group_/.test(style) && !/\[CQ:image/.test(option[1])) trans_args.group[style.replace(/^group_(?!info)/, "")] = option[1];
             else if (style == 'cover_origin') trans_args.cover_origin = true;
             else if (style == 'no_group_info') trans_args.no_group_info = true;
             else if (style == 'cover_origin_in_reply') trans_args.cover_origin_in_reply = true;
             else if (style == 'no_group_info_in_reply') trans_args.no_group_info_in_reply = true;
-            else if (style == 'group_info' && /^\[CQ:image/.test(option[1])) trans_args.group.group_info = option[3];
+            else if (style == 'group_info' && /\[CQ:image/.test(option[1])) trans_args.group.group_info = option[3];
+            else if (style == 'choice') {
+                trans_args.article.choice = option[1].split(/[;；]/).filter((noEmpty) => {return noEmpty != undefined && noEmpty.length > 0});
+            }
             else if (style == 'reply') {
                 if (!Array.isArray(trans_args.article.reply)) trans_args.article.reply = [option[1]];
                 else trans_args.article.reply.push(option[1]);
@@ -346,7 +359,7 @@ function saveTemplate(context, username, unparsed_text) {
         replyFunc(context, err, true);
         return;
     };
-    if ('origin' in trans_args.article || 'reply' in trans_args.article) {
+    if ('origin' in trans_args.article || 'reply' in trans_args.article || "retweet" in trans_args.article || "choice" in trans_args.article) {
         replyFunc(context, '不能将翻译内容加入模板', true);
         return;
     }
@@ -378,15 +391,20 @@ function findTemplate(username) {
 function cookTweet(context) {
     let raw = context.message.replace(/\r\n/g, "<br>");
     try {
-        let {groups : {twitter_url, username, text}} = /(?<twitter_url>https:\/\/twitter.com\/(?<username>.+?)\/status\/\d+)[>＞](?<text>.+)/i.exec(raw);
+        let {groups : {twitter_url, username}} = /(?<twitter_url>https:\/\/twitter.com\/(?<username>.+?)\/status\/\d+)(?:\?s=\d{1,2})?/i.exec(raw);
+        let text_index = /[>＞]{1,2}/.exec(raw);
+        let text = raw.substring(text_index.index);
+        
         findTemplate(username).then(saved_trans_args => {
             if (!saved_trans_args) saved_trans_args = defaultTemplate;
             
-            if (/https:\/\/twitter.com\/.+?\/status\/\d+[>＞]{2}/.test(raw)) {
-                saved_trans_args.article.origin = text.substring(1);
+            if (/[>＞]{2}/.test(text)) {
+                text = text.substring(2).trim().replace(/^<br>/, "");
+                saved_trans_args.article.origin = text;
                 tweetShot(context, twitter_url, saved_trans_args);
             }
             else {
+                text = text.substring(1).trim();
                 let {trans_args, err} = setTemplate(text);
                 if (err) {
                     replyFunc(context, err, true);
@@ -404,11 +422,11 @@ function cookTweet(context) {
                     replyFunc(context, "你没加翻译", true);
                     return;
                 }
-            
                 tweetShot(context, twitter_url, trans_args);
             }
         });
     } catch(err) {
+        console.error(err);
         replyFunc(context, "出错惹");
     }
 }
