@@ -79,6 +79,8 @@ async function tweetShot(context, twitter_url, trans_args={}) {
             await page.evaluate((html_ready, trans_args, video_poster) => {
                 let banner = document.getElementsByTagName('header')[0];
                 banner.parentNode.removeChild(banner);
+                let header = document.getElementsByClassName("css-1dbjc4n r-aqfbo4 r-14lw9ot r-my5ep6 r-rull8r r-qklmqi r-gtdqiz r-ipm5af r-1g40b8q")[0];
+                header.parentNode.removeChild(header);
                 let footer = document.getElementsByClassName('css-1dbjc4n r-aqfbo4 r-1p0dtai r-1d2f490 r-12vffkv r-1xcajam r-zchlnj')[0];
                 footer.parentNode.removeChild(footer);
 
@@ -131,15 +133,18 @@ async function tweetShot(context, twitter_url, trans_args={}) {
                     if (cover_origin) article.firstElementChild.replaceWith(trans_place);
                     else article.appendChild(trans_place);
                 }
-                document.querySelector("#react-root").scrollIntoView();
+                document.querySelector("#react-root").scrollIntoView(true);
             }, html_ready, trans_args, video_poster);
         }
         else {
             await page.evaluate(() => {
                 let banner = document.getElementsByTagName('header')[0];
                 banner.parentNode.removeChild(banner);
+                let header = document.getElementsByClassName("css-1dbjc4n r-aqfbo4 r-14lw9ot r-my5ep6 r-rull8r r-qklmqi r-gtdqiz r-ipm5af r-1g40b8q")[0];
+                header.parentNode.removeChild(header);
                 let footer = document.getElementsByClassName('css-1dbjc4n r-aqfbo4 r-1p0dtai r-1d2f490 r-12vffkv r-1xcajam r-zchlnj')[0];
                 footer.parentNode.removeChild(footer);
+                document.querySelector("#react-root").scrollIntoView(true);
             });
         }
     } catch(err) {
@@ -215,10 +220,10 @@ async function setupHTML(trans_args) {
         }
         else {
             html_ready.trans_group_html = (trans_args.group_html == undefined) ? 
-                ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0" style="margin: 0px 0px 3px 1px;">', 
+                ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0" style="margin: 0px 0px 7px 1px;">', 
                 decoration(trans_args.group.group_info, trans_args.group), '</div>'].join("")
                 : ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0" \
-                style="margin: 0px 0px 3px 1px;">', trans_args.group_html, '</div>'].join("");
+                style="margin: 0px 0px 7px 1px;">', trans_args.group_html, '</div>'].join("");
         }
     }
     else html_ready.trans_group_html = "";
@@ -411,17 +416,21 @@ function cookTweet(context) {
                     return
                 };
 
-                for (let key in saved_trans_args) {
-                    if (typeof(saved_trans_args[key]) == "object") {
-                        trans_args[key] = Object.assign(saved_trans_args[key], trans_args[key]);
+                [saved_trans_args, trans_args].reduce((prev, next) => {
+                    for (let key in prev) {
+                        if (typeof(prev[key]) == "object") {
+                            next[key] = {...prev[key], ...next[key]};
+                        }
+                        else next[key] = next[key] != undefined ? next[key] : prev[key];
                     }
-                    else trans_args[key] = trans_args[key] != undefined ? trans_args[key] : saved_trans_args[key];
-                }
+                    return next;
+                })
 
                 if (!('trans_html' in trans_args) && !('origin' in trans_args.article) && !('reply' in trans_args.article)) {
                     replyFunc(context, "你没加翻译", true);
                     return;
                 }
+
                 tweetShot(context, twitter_url, trans_args);
             }
         });
