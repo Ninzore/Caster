@@ -24,7 +24,8 @@ const defaultTemplate = {
         color : 'rgb(27, 149, 224)' ,
         background : "",
         font_family : "source-han-sans",
-        text_decoration : ""
+        text_decoration : "",
+        logo_in_reply : "翻译自日文"
     },
     cover_origin : false,
     no_group_info : false,
@@ -65,18 +66,23 @@ async function tweetShot(context, twitter_url, trans_args={}) {
     try {
         if (Object.keys(trans_args).length > 0) {
             let html_ready = await setupHTML(trans_args);
-            let video_poster = await blockVideo(twitter_url);
+            let tweet = await getTweet(twitter_url);
+            let video_poster = await blockVideo(tweet);
+
             if (trans_args.cover_origin != undefined && trans_args.cover_origin_in_reply == undefined) {
                 trans_args.cover_origin_in_reply = trans_args.cover_origin;
             }
             if (trans_args.no_group_info != undefined && trans_args.no_group_info_in_reply == undefined) {
                 trans_args.no_group_info_in_reply = trans_args.no_group_info;
             }
+            if ("in_reply_to_status_id" in tweet && tweet.in_reply_to_status_id != null) {
+                html_ready.logo_in_reply = `<div style="margin: 1px 0px 1px 1px; display: inline-block;">${decoration(defaultTemplate.group.logo_in_reply, defaultTemplate.group)}</div>`;
+            }
             if (trans_args.article.retweet != undefined) {
                 trans_args.article.retweet = `<div class="css-901oao">${decoration(trans_args.article.retweet, trans_args.article)}</div>`;
             }
 
-            await page.evaluate((html_ready, trans_args, video_poster) => {
+            await page.evaluate((html_ready, trans_args, tweet, video_poster) => {
                 let banner = document.getElementsByTagName('header')[0];
                 banner.parentNode.removeChild(banner);
                 let header = document.getElementsByClassName("css-1dbjc4n r-aqfbo4 r-14lw9ot r-my5ep6 r-rull8r r-qklmqi r-gtdqiz r-ipm5af r-1g40b8q")[0];
@@ -86,12 +92,15 @@ async function tweetShot(context, twitter_url, trans_args={}) {
 
                 let articles = document.querySelectorAll('article');
                 let article = articles[0].querySelector('[role=group]').parentElement;
-                insert(article, html_ready.trans_article_html, html_ready.trans_group_html, trans_args.cover_origin);
+                insert(article, html_ready.trans_article_html, 
+                    html_ready.reply_html != undefined ? ((trans_args.no_group_info && trans_args.no_group_info_in_reply) ? '' : html_ready.logo_in_reply) 
+                        : html_ready.trans_group_html
+                    , trans_args.cover_origin);
 
                 if (video_poster) article.children[1].firstElementChild.firstElementChild.innerHTML = video_poster;
 
                 if (trans_args.article.retweet != undefined) {
-                    article.children[1].firstElementChild.firstElementChild.children[1].firstElementChild.children[1].firstElementChild.innerHTML 
+                    article.children[1].lastElementChild.firstElementChild.children[1].firstElementChild.children[1].firstElementChild.innerHTML 
                          = trans_args.article.retweet;
                 }
 
@@ -106,7 +115,8 @@ async function tweetShot(context, twitter_url, trans_args={}) {
                         else {
                             article = articles[i+1].querySelector('[role=group]').parentElement;
                             insert(article, html_ready.reply_html[i], 
-                                trans_args.no_group_info_in_reply ? '' : html_ready.trans_group_html,
+                                trans_args.no_group_info_in_reply ? '' 
+                                : (i+1 == html_ready.reply_html.length ? html_ready.trans_group_html : html_ready.logo_in_reply),
                                 trans_args.cover_origin_in_reply);
                         }
                     }
@@ -117,15 +127,11 @@ async function tweetShot(context, twitter_url, trans_args={}) {
                     let node_group_info = document.createElement('div');
                     let node_trans_article = document.createElement('div');
 
-                    trans_place.dir = "auto";
-                    node_group_info.dir = "auto";
-                    node_trans_article.dir = "auto";
-
                     node_group_info.innerHTML = group_html;
                     node_trans_article.innerHTML = translation_html;
 
-                    if (/^回复 \n@/.test(article.firstElementChild.innerText)) article = article.children[1];
-                    else article = article.firstElementChild;
+                    if (/^回复 \n@/.test(article.firstElementChild.innerText)) article = article.children[1].firstElementChild;
+                    else article = article.firstElementChild.firstElementChild;
 
                     trans_place.appendChild(node_group_info);
                     trans_place.appendChild(node_trans_article);
@@ -134,7 +140,7 @@ async function tweetShot(context, twitter_url, trans_args={}) {
                     else article.appendChild(trans_place);
                 }
                 document.querySelector("#react-root").scrollIntoView(true);
-            }, html_ready, trans_args, video_poster);
+            }, html_ready, trans_args, tweet, video_poster);
         }
         else {
             await page.evaluate(() => {
@@ -172,7 +178,7 @@ async function tweetShot(context, twitter_url, trans_args={}) {
     await browser.close();
 }
 
-function blockVideo(twitter_url) {
+function getTweet(twitter_url) {
     return axios({
         method:'GET',
         url: "https://api.twitter.com/1.1/statuses/lookup.json",
@@ -184,20 +190,18 @@ function blockVideo(twitter_url) {
             "include_card_uri" : "true",
             "tweet_mode" : "extended"
         }
-    }).then(res => {
-        let tweet = res.data[0];
-        if ("extended_entities" in tweet && tweet.extended_entities.media != undefined && tweet.extended_entities.media[0].type == 'video') {
-            return axios.get(tweet.extended_entities.media[0].media_url_https, {responseType:'arraybuffer'})
-                        .then(res => {
-                            let img64 = "data:image/jpeg;base64," + Buffer.from(res.data, 'binary').toString('base64');
-                            return `<img style="max-height:100%; max-width:100%" src="${img64}">`;
-                        });
-        }
-        else return false;
-    }).catch(err => {
-        console.error(err.response.data);
-        return false;
-    });
+    }).then(res => {return res.data[0];});
+}
+
+function blockVideo(tweet) {
+    if ("extended_entities" in tweet && tweet.extended_entities.media != undefined && tweet.extended_entities.media[0].type == 'video') {
+        return axios.get(tweet.extended_entities.media[0].media_url_https, {responseType:'arraybuffer'})
+            .then(res => {
+                let img64 = "data:image/jpeg;base64," + Buffer.from(res.data, 'binary').toString('base64');
+                return `<img style="max-height:100%; max-width:100%" src="${img64}">`;
+            });
+    }
+    else return false;
 }
 
 async function setupHTML(trans_args) {
@@ -205,14 +209,16 @@ async function setupHTML(trans_args) {
     let html_ready = {}
 
     html_ready.trans_article_html = trans_args.article_html == undefined ? decoration(trans_args.article.origin, trans_args.article) : trans_args.article_html;
-    html_ready.trans_article_html = `<div class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0">${html_ready.trans_article_html}</div>`
+    // html_ready.trans_article_html = `<div class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0">${html_ready.trans_article_html}</div>`
+    html_ready.trans_article_html = `<div style="display: inline-block; overflow-wrap: break-word;">${html_ready.trans_article_html}</div>`
 
     if (trans_args.article.reply != undefined) {
         html_ready.reply_html = [];
-        for (let reply of trans_args.article.reply) html_ready.reply_html.push(decoration(reply, trans_args.article));
+        for (let reply of trans_args.article.reply) html_ready.reply_html.push(
+            `<div style="display: inline-block; overflow-wrap: break-word;">${decoration(reply, trans_args.article)}</div>`);
     }
     if (!trans_args.no_group_info) {
-        if (/^https/.test(trans_args.group.group_info)) {
+        if (/^http/.test(trans_args.group.group_info)) {
             trans_args.group.size = trans_args.group.size == "inherit" ? '2em' : trans_args.group.size;
             let img64 = "data:image/jpeg;base64," + await axios.get(trans_args.group.group_info, {responseType:'arraybuffer'})
                                                                 .then(res => {return Buffer.from(res.data, 'binary').toString('base64')});
@@ -220,10 +226,10 @@ async function setupHTML(trans_args) {
         }
         else {
             html_ready.trans_group_html = (trans_args.group_html == undefined) ? 
-                ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0" style="margin: 0px 0px 7px 1px;">', 
+                ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0" style="display: inline-block; margin: 0px 0px 3px 1px;">', 
                 decoration(trans_args.group.group_info, trans_args.group), '</div>'].join("")
-                : ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0" \
-                style="margin: 0px 0px 7px 1px;">', trans_args.group_html, '</div>'].join("");
+                : ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0;" \
+                style="margin: 0px 0px 3px 1px; display: inline-block;">', trans_args.group_html, '</div>'].join("");
         }
     }
     else html_ready.trans_group_html = "";
@@ -232,9 +238,9 @@ async function setupHTML(trans_args) {
 
 function decoration(text, template) {
     let css = ('css' in template && template.css.length > 1) ? template.css
-        : template ? `font-family: ${template.font_family}; font-size: ${template.size}; text-decoration: ${template.text_decoration}; color: ${template.color}; background: ${template.background};` : "";
+        : template ? `font-family: ${template.font_family}; font-size: ${template.size}; text-decoration: ${template.text_decoration}; color: ${template.color}; background: ${template.background};` : "all: inherit;";
     let ready_html = 
-        `<div style="all: inherit; ${css}">${parseString(text, template)}</div>`;
+        `<div style="all: inherit; display: inline-block; ${css}">${parseString(text, template)}</div>`;
 
     return ready_html;
 }
@@ -275,7 +281,7 @@ function parseString(text) {
     return ready_html;
     
     function crtString(text_part) {
-        return `<span dir="auto" style="all:inherit;">${text_part}</span>`;
+        return `<span dir="auto" style="all: inherit;">${text_part}</span>`;
     }
 }
 
