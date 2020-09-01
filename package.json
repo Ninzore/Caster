@@ -1,6 +1,6 @@
 {
   "name": "bbq",
-  "version": "2.2.8",
+  "version": "2.5.0",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -21,22 +21,13 @@
   },
   "homepage": "https://github.com/Ninzore/BBQ#readme",
   "dependencies": {
-    "axios": "^0.19.2",
+    "axios": "^0.20.0",
     "cq-websocket": "^2.1.1",
-    "esm": "^3.2.25",
-    "fs": "0.0.1-security",
-    "fs-extra": "^9.0.0",
-    "http": "0.0.1-security",
-    "lodash": "^4.17.19",
-    "lodash.combinations": "^18.10.0",
+    "fs-extra": "^9.0.1",
+    "lodash": "^4.17.20",
     "minimist": "^1.2.5",
     "mongodb": "^3.6.0",
-    "path": "^0.12.7",
-    "puppeteer": "^5.2.1",
-    "random-seed": "^0.3.0",
-    "seedrandom": "^3.0.5",
-    "sqlite": "^3.0.6",
-    "url": "^0.11.0"
+    "puppeteer": "^5.2.1"
   },
   "devDependencies": {},
   "description": "Wecab汉化组特化型"
