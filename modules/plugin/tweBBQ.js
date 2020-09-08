@@ -14,16 +14,16 @@ const defaultTemplate = {
         size : 'inherit',
         color : 'inherit',
         background : "",
-        font_family : "source-han-sans",
+        font_family : "Source-han-sans",
         text_decoration : ""
     },
     group : {
         group_info : "翻译自日文",
         css : "",
-        size : '15px',
+        size : '13px',
         color : 'rgb(27, 149, 224)' ,
         background : "",
-        font_family : "source-han-sans",
+        font_family : "Source-han-sans",
         text_decoration : "",
         logo_in_reply : "翻译自日文"
     },
@@ -52,7 +52,7 @@ function checkConnection() {
  */
 async function tweetShot(context, twitter_url, trans_args={}) {
     let browser = await puppeteer.launch({
-        args : ['--no-sandbox', '--disable-dev-shm-usage']
+        args : ['--no-sandbox', '--disable-dev-shm-usage'], headless: true
     });
     let page = await browser.newPage();
     await page.setExtraHTTPHeaders({
@@ -76,7 +76,7 @@ async function tweetShot(context, twitter_url, trans_args={}) {
                 trans_args.no_group_info_in_reply = trans_args.no_group_info;
             }
             if ("in_reply_to_status_id" in tweet && tweet.in_reply_to_status_id != null) {
-                html_ready.logo_in_reply = `<div style="margin: 1px 0px 1px 1px; display: inline-block;">${decoration(defaultTemplate.group.logo_in_reply, defaultTemplate.group)}</div>`;
+                html_ready.logo_in_reply = `<div style="margin: 1px 0px 2px 1px; display: inline-block;">${decoration(defaultTemplate.group.logo_in_reply, defaultTemplate.group)}</div>`;
             }
             if (trans_args.article.retweet != undefined) {
                 trans_args.article.retweet = `<div class="css-901oao">${decoration(trans_args.article.retweet, trans_args.article)}</div>`;
@@ -99,9 +99,9 @@ async function tweetShot(context, twitter_url, trans_args={}) {
 
                 if (video_poster) article.children[1].firstElementChild.firstElementChild.innerHTML = video_poster;
 
-                if (trans_args.article.retweet != undefined) {
+                if (trans_args.article.quote != undefined) {
                     article.children[1].lastElementChild.firstElementChild.children[1].firstElementChild.children[1].firstElementChild.innerHTML 
-                         = trans_args.article.retweet;
+                         = trans_args.article.quote;
                 }
 
                 if (trans_args.article.choice != undefined) {
@@ -127,6 +127,7 @@ async function tweetShot(context, twitter_url, trans_args={}) {
                     let node_group_info = document.createElement('div');
                     let node_trans_article = document.createElement('div');
 
+                    trans_place.lang = "zh";
                     node_group_info.innerHTML = group_html;
                     node_trans_article.innerHTML = translation_html;
 
@@ -174,7 +175,7 @@ async function tweetShot(context, twitter_url, trans_args={}) {
         encoding : "base64",
         clip : {x : tweet_box.x - 15, y : -2, width : tweet_box.width + 27, height : tweet_box.y + tweet_box.height + 12}
     }).then(pic64 => replyFunc(context, `[CQ:image,file=base64://${pic64}]`));
-
+    
     await browser.close();
 }
 
@@ -215,14 +216,14 @@ async function setupHTML(trans_args) {
     if (trans_args.article.reply != undefined) {
         html_ready.reply_html = [];
         for (let reply of trans_args.article.reply) html_ready.reply_html.push(
-            `<div style="display: inline-block; overflow-wrap: break-word;">${decoration(reply, trans_args.article)}</div>`);
+            `<div style="display: inline-block; white-space: pre-wrap; overflow-wrap: break-word;">${decoration(reply, trans_args.article)}</div>`);
     }
     if (!trans_args.no_group_info) {
         if (/^http/.test(trans_args.group.group_info)) {
-            trans_args.group.size = trans_args.group.size == "inherit" ? '2em' : trans_args.group.size;
+            trans_args.group.size = trans_args.group.size == "inherit" ? '30px' : trans_args.group.size;
             let img64 = "data:image/jpeg;base64," + await axios.get(trans_args.group.group_info, {responseType:'arraybuffer'})
                                                                 .then(res => {return Buffer.from(res.data, 'binary').toString('base64')});
-            html_ready.trans_group_html = `<img style="margin: 2px 0px 0px 0px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
+            html_ready.trans_group_html = `<img style="margin: 2px 0px -5px 0px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
         }
         else {
             html_ready.trans_group_html = (trans_args.group_html == undefined) ? 
@@ -240,7 +241,7 @@ function decoration(text, template) {
     let css = ('css' in template && template.css.length > 1) ? template.css
         : template ? `font-family: ${template.font_family}; font-size: ${template.size}; text-decoration: ${template.text_decoration}; color: ${template.color}; background: ${template.background};` : "all: inherit;";
     let ready_html = 
-        `<div style="all: inherit; display: inline-block; ${css}">${parseString(text, template)}</div>`;
+        `<div  class="css-901oao css-1dbjc4n" style="display: inline-block; white-space: pre-wrap; overflow-wrap: break-word; ${css}">${parseString(text, template)}</div>`;
 
     return ready_html;
 }
@@ -281,7 +282,7 @@ function parseString(text) {
     return ready_html;
     
     function crtString(text_part) {
-        return `<span dir="auto" style="all: inherit;">${text_part}</span>`;
+        return `<span dir="auto">${text_part}</span>`;
     }
 }
 
@@ -306,7 +307,7 @@ function setTemplate(unparsed) {
         "汉化组装饰" : "group_text_decoration",
         "汉化组css" : "group_css",
         "背景" : "background",
-        "引用" : "retweet",
+        "引用" : "quote",
         "选项" : "choice",
         "覆盖" : "cover_origin",
         "无汉化组" : "no_group_info",
@@ -379,7 +380,7 @@ function saveTemplate(context, username, unparsed_text) {
         let coll = mongo.db('bot').collection('twiBBQ');
         try {
             await coll.updateOne({username : username}, 
-                {$set : {trans_args}}, {upsert : true});
+                {$set : {trans_args, group_id : context.group_id}}, {upsert : true});
             replyFunc(context, `成功保存了${username}的模板，恭喜恭喜`);
         } catch(err) {
             console.error(err);
@@ -388,11 +389,13 @@ function saveTemplate(context, username, unparsed_text) {
     });
 }
 
-function findTemplate(username) {
+function findTemplate(username, group_id) {
     return mongodb(db_path, {useUnifiedTopology: true}).connect().then(async mongo => {
         let coll = mongo.db('bot').collection('twiBBQ');
         try {
             let res = await coll.findOne({username : username});
+            if (res) return res.trans_args;
+            else res = await coll.findOne({group_id : group_id});
             return (res) ? res.trans_args : false;
         } catch(err) {console.error(err);
         } finally {mongo.close();}
@@ -406,7 +409,7 @@ function cookTweet(context) {
         let text_index = /[>＞]{1,2}/.exec(raw);
         let text = raw.substring(text_index.index);
         
-        findTemplate(username).then(saved_trans_args => {
+        findTemplate(username, context.group_id).then(saved_trans_args => {
             if (!saved_trans_args) saved_trans_args = defaultTemplate;
             
             if (/[>＞]{2}/.test(text)) {
