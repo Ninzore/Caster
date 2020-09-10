@@ -220,7 +220,7 @@ async function setupHTML(trans_args) {
     }
     if (!trans_args.no_group_info) {
         if (/^http/.test(trans_args.group.group_info)) {
-            trans_args.group.size = trans_args.group.size == "inherit" ? '30px' : trans_args.group.size;
+            trans_args.group.size = trans_args.group.size == defaultTemplate.group.size ? '30px' : trans_args.group.size;
             let img64 = "data:image/jpeg;base64," + await axios.get(trans_args.group.group_info, {responseType:'arraybuffer'})
                                                                 .then(res => {return Buffer.from(res.data, 'binary').toString('base64')});
             html_ready.trans_group_html = `<img style="margin: 2px 0px -5px 0px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
@@ -333,7 +333,7 @@ function setTemplate(unparsed) {
             else if (style == 'no_group_info') trans_args.no_group_info = true;
             else if (style == 'cover_origin_in_reply') trans_args.cover_origin_in_reply = true;
             else if (style == 'no_group_info_in_reply') trans_args.no_group_info_in_reply = true;
-            else if (style == 'group_info' && /\[CQ:image/.test(option[1])) trans_args.group.group_info = option[3];
+            else if (style == 'group_info' && /\[CQ:image/.test(option[1])) trans_args.group.group_info = /(http.+?)\?/.exec(option.join(""))[1];
             else if (style == 'choice') {
                 trans_args.article.choice = option[1].split(/[;；]/).filter((noEmpty) => {return noEmpty != undefined && noEmpty.length > 0});
             }
