@@ -68,7 +68,7 @@ async function tweetShot(context, twitter_url, trans_args={}) {
             let html_ready = await setupHTML(trans_args);
             let tweet = await getTweet(twitter_url);
             let video_poster = await blockVideo(tweet);
-
+            
             if (trans_args.cover_origin != undefined && trans_args.cover_origin_in_reply == undefined) {
                 trans_args.cover_origin_in_reply = trans_args.cover_origin;
             }
@@ -96,11 +96,15 @@ async function tweetShot(context, twitter_url, trans_args={}) {
                     html_ready.reply_html != undefined ? ((trans_args.no_group_info && trans_args.no_group_info_in_reply) ? '' : html_ready.logo_in_reply) 
                         : html_ready.trans_group_html
                     , trans_args.cover_origin);
+                
+                if ("quoted_status" in tweet && "possibly_sensitive" in tweet.quoted_status && tweet.quoted_status.possibly_sensitive == true) {
+                    articles[0].querySelector('[href="/settings/safety"]').parentElement.parentElement.parentElement.children[1].firstChild.click();
+                }
 
                 if (video_poster) article.children[1].firstElementChild.firstElementChild.innerHTML = video_poster;
 
                 if (trans_args.article.quote != undefined) {
-                    article.children[1].lastElementChild.firstElementChild.children[1].firstElementChild.children[1].firstElementChild.innerHTML 
+                    article.children[1].lastElementChild.lastElementChild.children[1].firstElementChild.children[1].firstElementChild.innerHTML 
                          = trans_args.article.quote;
                 }
 
