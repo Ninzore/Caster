@@ -18,14 +18,14 @@ const defaultTemplate = {
         text_decoration : ""
     },
     group : {
-        group_info : "翻译自日文",
+        group_info : "翻译",
         css : "",
         size : '13px',
         color : 'rgb(27, 149, 224)' ,
         background : "",
         font_family : "Source-han-sans",
         text_decoration : "",
-        logo_in_reply : "翻译自日文"
+        logo_in_reply : "翻译"
     },
     cover_origin : false,
     no_group_info : false,
@@ -60,6 +60,7 @@ async function tweetShot(context, twitter_url, trans_args={}) {
         "accept-language" : "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,ja;q=0.6",
         "DNT" : "1"
     });
+    await page.setBypassCSP(true);
     await page.emulateTimezone('Asia/Tokyo');
     await page.goto(twitter_url, {waitUntil : "networkidle0"});
 
@@ -68,7 +69,6 @@ async function tweetShot(context, twitter_url, trans_args={}) {
             let html_ready = await setupHTML(trans_args);
             let tweet = await getTweet(twitter_url);
             let video_poster = await blockVideo(tweet);
-            
             if (trans_args.cover_origin != undefined && trans_args.cover_origin_in_reply == undefined) {
                 trans_args.cover_origin_in_reply = trans_args.cover_origin;
             }
@@ -96,7 +96,7 @@ async function tweetShot(context, twitter_url, trans_args={}) {
                     html_ready.reply_html != undefined ? ((trans_args.no_group_info && trans_args.no_group_info_in_reply) ? '' : html_ready.logo_in_reply) 
                         : html_ready.trans_group_html
                     , trans_args.cover_origin);
-                
+
                 if ("quoted_status" in tweet && "possibly_sensitive" in tweet.quoted_status && tweet.quoted_status.possibly_sensitive == true) {
                     articles[0].querySelector('[href="/settings/safety"]').parentElement.parentElement.parentElement.children[1].firstChild.click();
                 }
@@ -125,22 +125,22 @@ async function tweetShot(context, twitter_url, trans_args={}) {
                         }
                     }
                 }
-
                 function insert(article, translation_html, group_html, cover_origin=false) {
                     let trans_place = document.createElement('div');
                     let node_group_info = document.createElement('div');
                     let node_trans_article = document.createElement('div');
-
+                
                     trans_place.lang = "zh";
                     node_group_info.innerHTML = group_html;
                     node_trans_article.innerHTML = translation_html;
-
+                
                     if (/^回复 \n@/.test(article.firstElementChild.innerText)) article = article.children[1].firstElementChild;
                     else article = article.firstElementChild.firstElementChild;
+                    if (article == null) return;
 
                     trans_place.appendChild(node_group_info);
                     trans_place.appendChild(node_trans_article);
-
+                
                     if (cover_origin) article.firstElementChild.replaceWith(trans_place);
                     else article.appendChild(trans_place);
                 }
@@ -179,6 +179,116 @@ async function tweetShot(context, twitter_url, trans_args={}) {
         encoding : "base64",
         clip : {x : tweet_box.x - 15, y : -2, width : tweet_box.width + 27, height : tweet_box.y + tweet_box.height + 12}
     }).then(pic64 => replyFunc(context, `[CQ:image,file=base64://${pic64}]`));
+
+    await browser.close();
+}
+
+async function serialTweet(context, twitter_url, trans_args={}) {
+    let tweet = await getTweet(twitter_url);
+
+    if ("in_reply_to_status_id" in tweet && tweet.in_reply_to_user_id != null) {
+        replyFunc(context, "这个功能不能烤回复推！", true);
+        return;
+    }
+    let browser = await puppeteer.launch({
+        args : ["--no-sandbox", "--disable-dev-shm-usage"], ignoreDefaultArgs : ["--enable-automation"], headless: true
+    });
+    let page = await browser.newPage();
+    await page.setBypassCSP(true);
+    await page.setExtraHTTPHeaders({
+        "user-agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.163 Safari/537.36",
+        "accept-language" : "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,ja;q=0.6",
+        "DNT" : "1"
+    });
+    await page.emulateTimezone('Asia/Tokyo');
+    let {groups : {username, tweet_id}} = /https:\/\/twitter\.com\/(?<username>.+?)\/status\/(?<tweet_id>\d+)/i.exec(twitter_url);
+    await page.goto(`https://twitter.com/search?q=(from:${username}) -filter:replies&f=live`, {waitUntil : "networkidle0"});
+
+    try {
+        await page.waitForSelector(`[href$="${tweet_id}"]`, {visible : true, timeout : 10000});
+    } catch(err) {
+        replyFunc(context, "大失败！可能是：\n链接错误或者太过远古或者连接超时", true);
+        await browser.close();
+        return;
+    };
+
+    try {
+        let html_ready = await setupHTML(trans_args);
+        await page.evaluate((html_ready, trans_args, tweet_id) => {
+            let header = document.getElementsByClassName("css-1dbjc4n r-aqfbo4 r-14lw9ot r-my5ep6 r-rull8r r-qklmqi r-gtdqiz r-ipm5af r-1g40b8q")[0];
+            header.parentNode.removeChild(header);
+            let footer = document.getElementsByClassName('css-1dbjc4n r-aqfbo4 r-1p0dtai r-1d2f490 r-12vffkv r-1xcajam r-zchlnj')[0];
+            footer.parentNode.removeChild(footer);
+
+            let articles = document.querySelectorAll('article');
+            let focus = 0;
+
+            for (let i = 0; i < articles.length; i++) {
+                let article = articles[i];
+                if (article.querySelector(`[href$="${tweet_id}"]`) != null) {
+                    article.scrollIntoView(true);
+                    focus = i;
+                    break;
+                }
+                else article.parentElement.removeChild(article);
+            }
+
+            for (let i = 0; i < html_ready.serialTrans.length; i++) {
+                insert(articles[focus + i].querySelector('[role=group]').parentElement, html_ready.serialTrans[i], 
+                    html_ready.no_group_info ? "" : html_ready.trans_group_html, trans_args.cover_origin);
+            }
+            
+            function insert(article, translation_html, group_html, cover_origin=false) {
+                let trans_place = document.createElement('div');
+                let node_group_info = document.createElement('div');
+                let node_trans_article = document.createElement('div');
+            
+                trans_place.lang = "zh";
+                node_group_info.innerHTML = group_html;
+                node_trans_article.innerHTML = translation_html;
+                
+                if (/^回复 \n@/.test(article.firstElementChild.innerText)) article = article.children[1].firstElementChild;
+                else article = article.firstElementChild.firstElementChild;
+                if (article == null) return;
+                
+                trans_place.appendChild(node_group_info);
+                trans_place.appendChild(node_trans_article);
+
+                if (cover_origin) article.replaceWith(trans_place);
+                else article.appendChild(trans_place);
+            }
+        }, html_ready, trans_args, tweet_id);
+
+        await page.waitFor(2000);
+        let box = await page.evaluate((html_ready) => {
+            document.querySelector("#react-root").scrollIntoView(true);
+            let articles = document.querySelectorAll('article');
+            let box = {};
+            box.first = articles[0].getBoundingClientRect();
+            box.last = articles[html_ready.serialTrans.length - 1].getBoundingClientRect();
+            return JSON.stringify(box);
+        }, html_ready)
+        box = JSON.parse(box);
+
+        await page.setViewport({
+            width: 800,
+            height: Math.round(box.last.bottom + 200),
+            deviceScaleFactor: 1.8
+        });
+
+        await page.screenshot({
+            type : "jpeg",
+            quality : 100,
+            encoding : "base64",
+            clip : {x : box.first.x, y : 3, width : box.first.width - 7, height : box.last.bottom - 4},
+        }).then(pic64 => replyFunc(context, `[CQ:image,file=base64://${pic64}]`));
+
+    } catch(err) {
+        console.error(err);
+        replyFunc(context, "出错惹", true);
+        await browser.close();
+        return;
+    }
     
     await browser.close();
 }
@@ -213,9 +323,19 @@ async function setupHTML(trans_args) {
     trans_args = fillTemplate(trans_args);
     let html_ready = {}
 
-    html_ready.trans_article_html = trans_args.article_html == undefined ? decoration(trans_args.article.origin, trans_args.article) : trans_args.article_html;
-    // html_ready.trans_article_html = `<div class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0">${html_ready.trans_article_html}</div>`
-    html_ready.trans_article_html = `<div style="display: inline-block; overflow-wrap: break-word;">${html_ready.trans_article_html}</div>`
+    if (trans_args.article.origin != undefined) {
+        html_ready.trans_article_html = trans_args.article_html == undefined ? decoration(trans_args.article.origin, trans_args.article) : trans_args.article_html;
+        // html_ready.trans_article_html = `<div class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0">${html_ready.trans_article_html}</div>`
+        html_ready.trans_article_html = `<div style="display: inline-block; overflow-wrap: break-word;">${html_ready.trans_article_html}</div>`
+    }
+    
+    if ("serialTrans" in trans_args.article && trans_args.article.serialTrans.length > 0) {
+        html_ready.serialTrans = [];
+        for (let trans of trans_args.article.serialTrans) {
+            html_ready.serialTrans.push(['<div style="display: inline-block; white-space: pre-wrap; overflow-wrap: break-word;">',
+                `${decoration(trans, trans_args.article)}</div>`].join(""));
+        }
+    }
 
     if (trans_args.article.reply != undefined) {
         html_ready.reply_html = [];
@@ -227,14 +347,14 @@ async function setupHTML(trans_args) {
             trans_args.group.size = trans_args.group.size == defaultTemplate.group.size ? '30px' : trans_args.group.size;
             let img64 = "data:image/jpeg;base64," + await axios.get(trans_args.group.group_info, {responseType:'arraybuffer'})
                                                                 .then(res => {return Buffer.from(res.data, 'binary').toString('base64')});
-            html_ready.trans_group_html = `<img style="margin: 2px 0px -5px 0px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
+            html_ready.trans_group_html = `<img style="margin: 2px 0px -3px 0px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
         }
         else {
             html_ready.trans_group_html = (trans_args.group_html == undefined) ? 
                 ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0" style="display: inline-block; margin: 0px 0px 3px 1px;">', 
                 decoration(trans_args.group.group_info, trans_args.group), '</div>'].join("")
                 : ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0;" \
-                style="margin: 0px 0px 3px 1px; display: inline-block;">', trans_args.group_html, '</div>'].join("");
+                style="margin: 0px 0px 4px 1px; display: inline-block;">', trans_args.group_html, '</div>'].join("");
         }
     }
     else html_ready.trans_group_html = "";
@@ -298,6 +418,7 @@ function setTemplate(unparsed) {
     let err = false;
     let option_map = {
         "翻译" : "origin",
+        "连续翻译" : "serialTrans",
         "回复" : "reply",
         "颜色" : "color",
         "大小" : "size",
@@ -344,6 +465,9 @@ function setTemplate(unparsed) {
             else if (style == 'reply') {
                 if (!Array.isArray(trans_args.article.reply)) trans_args.article.reply = [option[1]];
                 else trans_args.article.reply.push(option[1]);
+            }
+            else if (style == "serialTrans") {
+                trans_args.article.serialTrans = option[1].split(/[;；]/, 10);
             }
             else trans_args.article[style] = option[1];
         }
@@ -438,13 +562,24 @@ function cookTweet(context) {
                     }
                     return next;
                 })
-
-                if (!('trans_html' in trans_args) && !('origin' in trans_args.article) && !('reply' in trans_args.article)) {
+                
+                if (!('trans_html' in trans_args) && !('origin' in trans_args.article) 
+                    && !('reply' in trans_args.article) && !('serialTrans' in trans_args.article)) {
                     replyFunc(context, "你没加翻译", true);
                     return;
                 }
-
-                tweetShot(context, twitter_url, trans_args);
+                if ("serialTrans" in trans_args.article) {
+                    if ('origin' in trans_args.article || 'reply' in trans_args.article || 'quote' in trans_args.article) {
+                        replyFunc(context, "连续翻译不可以和其他文字选项同时出现", true);
+                        return;
+                    }
+                    else if (trans_args.article.serialTrans.length > 5) {
+                        replyFunc(context, "连烤太长会爆掉的", true);
+                        return;
+                    }
+                    else serialTweet(context, twitter_url, trans_args);
+                }
+                else tweetShot(context, twitter_url, trans_args);
             }
         });
     } catch(err) {
