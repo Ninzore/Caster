@@ -51,23 +51,27 @@ function checkConnection() {
  * @param {object} trans_args 所有翻译相关选项
  */
 async function tweetShot(context, twitter_url, trans_args={}) {
-    let browser = await puppeteer.launch({
-        args : ['--no-sandbox', '--disable-dev-shm-usage'], headless: true
-    });
-    let page = await browser.newPage();
-    await page.setExtraHTTPHeaders({
-        "user-agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.163 Safari/537.36",
-        "accept-language" : "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,ja;q=0.6",
-        "DNT" : "1"
-    });
-    await page.setBypassCSP(true);
-    await page.emulateTimezone('Asia/Tokyo');
-    await page.goto(twitter_url, {waitUntil : "networkidle0"});
-
     try {
+        let tweet = await getTweet(twitter_url);
+        if (!tweet) {
+            throw 1;
+        }
+        let browser = await puppeteer.launch({
+            args : ['--no-sandbox', '--disable-dev-shm-usage'], headless: true
+        });
+        let page = await browser.newPage();
+        await page.setExtraHTTPHeaders({
+            "user-agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.163 Safari/537.36",
+            "accept-language" : "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,ja;q=0.6",
+            "DNT" : "1"
+        });
+        await page.setBypassCSP(true);
+        await page.emulateTimezone('Asia/Tokyo');
+        await page.goto(twitter_url, {waitUntil : "networkidle0"});
+
+    
         if (Object.keys(trans_args).length > 0) {
             let html_ready = await setupHTML(trans_args);
-            let tweet = await getTweet(twitter_url);
             let video_poster = await blockVideo(tweet);
             if (trans_args.cover_origin != undefined && trans_args.cover_origin_in_reply == undefined) {
                 trans_args.cover_origin_in_reply = trans_args.cover_origin;
@@ -158,29 +162,32 @@ async function tweetShot(context, twitter_url, trans_args={}) {
                 document.querySelector("#react-root").scrollIntoView(true);
             });
         }
-    } catch(err) {
-        console.error(err);
-        replyFunc(context, "出错惹", true);
-        await browser.close();
-        return;
-    }
-    
-    await page.waitFor(2000);
-    let tweet_box = await page.$('article .css-1dbjc4n .r-vpgt9t').then((tweet_article) => {return tweet_article.boundingBox()});
-    
-    await page.setViewport({
-        width: 800,
-        height: Math.round(tweet_box.y + 200),
-        deviceScaleFactor: 1.6
-    });
-    await page.screenshot({
-        type : "jpeg",
-        quality : 100,
-        encoding : "base64",
-        clip : {x : tweet_box.x - 15, y : -2, width : tweet_box.width + 27, height : tweet_box.y + tweet_box.height + 12}
-    }).then(pic64 => replyFunc(context, `[CQ:image,file=base64://${pic64}]`));
 
-    await browser.close();
+        await page.waitFor(2000);
+        let tweet_box = await page.$('article .css-1dbjc4n .r-vpgt9t').then((tweet_article) => {return tweet_article.boundingBox()});
+    
+        await page.setViewport({
+            width: 800,
+            height: Math.round(tweet_box.y + 200),
+            deviceScaleFactor: 1.6
+        });
+        await page.screenshot({
+            type : "jpeg",
+            quality : 100,
+            encoding : "base64",
+            clip : {x : tweet_box.x - 15, y : -2, width : tweet_box.width + 27, height : tweet_box.y + tweet_box.height + 12}
+        }).then(pic64 => replyFunc(context, `[CQ:image,file=base64://${pic64}]`));
+        await browser.close();
+    } catch(err) {
+        if (err == 1) {
+            replyFunc(context, `没有${twitter_url}这条Twitter\n可能是被删了`, true);
+        }
+        else {
+            console.error(err);
+            replyFunc(context, "出错惹", true);
+            // await browser.close();
+        }
+    }
 }
 
 async function serialTweet(context, twitter_url, trans_args={}) {
@@ -347,7 +354,7 @@ async function setupHTML(trans_args) {
             trans_args.group.size = trans_args.group.size == defaultTemplate.group.size ? '30px' : trans_args.group.size;
             let img64 = "data:image/jpeg;base64," + await axios.get(trans_args.group.group_info, {responseType:'arraybuffer'})
                                                                 .then(res => {return Buffer.from(res.data, 'binary').toString('base64')});
-            html_ready.trans_group_html = `<img style="margin: 2px 0px -3px 0px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
+            html_ready.trans_group_html = `<img style="margin: 2px 0px -3px 1px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
         }
         else {
             html_ready.trans_group_html = (trans_args.group_html == undefined) ? 
@@ -536,7 +543,7 @@ function cookTweet(context) {
         let {groups : {twitter_url, username}} = /(?<twitter_url>https:\/\/twitter.com\/(?<username>.+?)\/status\/\d+)(?:\?s=\d{1,2})?/i.exec(raw);
         let text_index = /[>＞]{1,2}/.exec(raw);
         let text = raw.substring(text_index.index);
-        
+
         findTemplate(username, context.group_id).then(saved_trans_args => {
             if (!saved_trans_args) saved_trans_args = defaultTemplate;
             
@@ -589,13 +596,13 @@ function cookTweet(context) {
 }
 
 function complex(context) {
-    if (connection && /^(推特|Twitter)截图\s?https:\/\/twitter.com\/.+?\/status\/\d+/i.test(context.message)) {
-        let twitter_url = /https:\/\/twitter.com\/.+?\/status\/\d+/i.exec(context.message)[0];
+    if (connection && /^(推特|Twitter)截图\s?https:\/\/twitter.com\/.+?\/status\/\d{19}/i.test(context.message)) {
+        let twitter_url = /https:\/\/twitter.com\/.+?\/status\/\d{19}/i.exec(context.message)[0];
         tweetShot(context, twitter_url);
         return true;
     }
-    else if (connection && /^烤制\s?https:\/\/twitter.com\/.+?\/status\/\d+.+[>＞]{1,2}/i.test(context.message)) {
-        cookTweet(context, replyFunc);
+    else if (connection && /^烤制\s?https:\/\/twitter.com\/.+?\/status\/\d{19}(?:\?s=\d{1,2})?\s?[>＞]{1,2}/i.test(context.message)) {
+        cookTweet(context);
         return true;
     }
     else if (/^保存烤制模板\s?https:\/\/twitter.com\/.+(?:\/)?[>＞].+/.test(context.message)) {
