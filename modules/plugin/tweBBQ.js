@@ -72,10 +72,8 @@ async function cook(context, twitter_url, trans_args={}) {
         await page.emulateTimezone('Asia/Tokyo');
         await page.goto(twitter_url, {waitUntil : "networkidle0"});
 
-    
         if (trans_args && Object.keys(trans_args).length > 0) {
             let html_ready = await setupHTML(trans_args, tweet.full_text);
-            let video_poster = await blockVideo(tweet);
             if (trans_args.cover_origin != undefined && trans_args.cover_origin_in_reply == undefined) {
                 trans_args.cover_origin_in_reply = trans_args.cover_origin;
             }
@@ -89,7 +87,7 @@ async function cook(context, twitter_url, trans_args={}) {
                 trans_args.article.retweet = `<div class="css-901oao">${decoration(trans_args.article.retweet, trans_args.article)}</div>`;
             }
 
-            await page.evaluate((html_ready, trans_args, tweet, video_poster) => {
+            await page.evaluate((html_ready, trans_args, tweet) => {
                 let banner = document.getElementsByTagName('header')[0];
                 banner.parentNode.removeChild(banner);
                 let header = document.getElementsByClassName("css-1dbjc4n r-aqfbo4 r-14lw9ot r-my5ep6 r-rull8r r-qklmqi r-gtdqiz r-ipm5af r-1g40b8q")[0];
@@ -110,7 +108,21 @@ async function cook(context, twitter_url, trans_args={}) {
                     }
                 }
 
-                if (video_poster) article.children[1].firstElementChild.firstElementChild.innerHTML = video_poster;
+                let video = article.querySelector('[data-testid="videoPlayer"]');
+                if (video) {
+                    let poster = "";
+                    if (video.querySelector('[poster]') != null) poster = video.querySelector('[poster]').poster;
+                    else {
+                        let media = tweet.extended_entities.media;
+                        for (let i = 0; i < media.length; i++) {
+                            if (media[i].type == "animated_gif" || media[i].type == "video") {
+                                poster = media[i].media_url_https;
+                                break;
+                            }
+                        }
+                    }
+                    video.firstChild.lastChild.innerHTML = `<img style="max-height:100%; max-width:100%" src="${poster}">`;
+                }
 
                 if (trans_args.article.quote != undefined) {
                     article.children[1].lastElementChild.lastElementChild.children[0].lastElementChild.lastElementChild.children[1].lastElementChild.innerHTML 
@@ -156,7 +168,7 @@ async function cook(context, twitter_url, trans_args={}) {
                     else article.appendChild(trans_place);
                 }
                 document.querySelector("#react-root").scrollIntoView(true);
-            }, html_ready, trans_args, tweet, video_poster);
+            }, html_ready, trans_args, tweet);
         }
         else {
             await page.evaluate(() => {
@@ -317,20 +329,10 @@ function getTweet(twitter_url) {
             "include_entities" : "true",
             "include_ext_alt_text" : "true",
             "include_card_uri" : "true",
-            "tweet_mode" : "extended"
+            "tweet_mode" : "extended",
+            "trim_user" : "false"
         }
     }).then(res => {return res.data[0];});
-}
-
-function blockVideo(tweet) {
-    if ("extended_entities" in tweet && tweet.extended_entities.media != undefined && tweet.extended_entities.media[0].type == 'video') {
-        return axios.get(tweet.extended_entities.media[0].media_url_https, {responseType:'arraybuffer'})
-            .then(res => {
-                let img64 = "data:image/jpeg;base64," + Buffer.from(res.data, 'binary').toString('base64');
-                return `<img style="max-height:100%; max-width:100%" src="${img64}">`;
-            });
-    }
-    else return false;
 }
 
 async function setupHTML(trans_args, origin_text = "") {
@@ -388,7 +390,7 @@ function decoration(text, template, origin_text = "") {
 }
 
 function parseString(text, origin_text = false) {
-    text = text.replace(/(\S*)(#\S+)/gi,'$1<span style="color:#1DA1F2;">$2</span>')
+    text = text.replace(/(#\S+)(?=[】\])\s])/g,'<span style="color:#1DA1F2;">$1</span>')
                 .replace(/((https?|ftp|file):\/\/[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|])/g,'<span style="color:#1DA1F2;">$1</span>');
 
     if (/\/e/.test(text) && origin_text != false) {
@@ -534,7 +536,8 @@ function saveTemplate(context, username, unparsed_text) {
         try {
             await coll.updateOne({username : username}, 
                 {$set : {trans_args, group_id : context.group_id}}, {upsert : true});
-            replyFunc(context, `成功保存了${username}的模板，恭喜恭喜`);
+            // replyFunc(context, `成功保存了${username}的模板，恭喜恭喜`);
+            replyFunc(context, `恭喜👏 ${username} 👏恭喜\n  恭喜 👏 👏 👏 恭喜\n     恭喜 👏    👏 恭喜`);
         } catch(err) {
             console.error(err);
             replyFunc(context, "出错惹");
