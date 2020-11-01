@@ -80,12 +80,11 @@ async function cook(context, twitter_url, trans_args={}) {
             if (trans_args.no_group_info != undefined && trans_args.no_group_info_in_reply == undefined) {
                 trans_args.no_group_info_in_reply = trans_args.no_group_info;
             }
-            if ("in_reply_to_status_id" in tweet && tweet.in_reply_to_status_id != null) {
-                html_ready.logo_in_reply = `<div style="margin: 1px 0px 2px 1px; display: inline-block;">${decoration(defaultTemplate.group.logo_in_reply, defaultTemplate.group)}</div>`;
-            }
             if (trans_args.article.retweet != undefined) {
                 trans_args.article.retweet = `<div class="css-901oao">${decoration(trans_args.article.retweet, trans_args.article)}</div>`;
             }
+            html_ready.logo_in_reply = 
+                `<div style="margin: 1px 0px 2px 1px; display: inline-block;">${decoration(defaultTemplate.group.logo_in_reply, defaultTemplate.group)}</div>`;
 
             await page.evaluate((html_ready, trans_args, tweet) => {
                 let banner = document.getElementsByTagName('header')[0];
@@ -125,8 +124,9 @@ async function cook(context, twitter_url, trans_args={}) {
                 }
 
                 if (trans_args.article.quote != undefined) {
-                    article.children[1].lastElementChild.lastElementChild.children[0].lastElementChild.lastElementChild.children[1].lastElementChild.innerHTML 
-                         = html_ready.quote_html;
+                    let quote_block = document.querySelector('[role="blockquote"]')
+                    if (!quote_block) quote_block = document.getElementsByClassName("r-dap0kf")[0];
+                    quote_block.firstChild.children[1].lastChild.innerHTML = html_ready.quote_html;
                 }
 
                 if (trans_args.article.choice != undefined) {
@@ -342,24 +342,24 @@ async function setupHTML(trans_args, origin_text = "") {
         html_ready.trans_article_html = trans_args.article_html == undefined ? 
             decoration(trans_args.article.origin, trans_args.article, origin_text ? origin_text : false) : trans_args.article_html;
         // html_ready.trans_article_html = `<div class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0">${html_ready.trans_article_html}</div>`
-        html_ready.trans_article_html = `<div style="display: inline-block; overflow-wrap: break-word;">${html_ready.trans_article_html}</div>`
+        html_ready.trans_article_html = `<div style="display: block; overflow-wrap: break-word;">${html_ready.trans_article_html}</div>`
     }
     
     if ("serialTrans" in trans_args.article && trans_args.article.serialTrans.length > 0) {
         html_ready.serialTrans = [];
         for (let trans of trans_args.article.serialTrans) {
-            html_ready.serialTrans.push(['<div style="display: inline-block; white-space: pre-wrap; overflow-wrap: break-word;">',
+            html_ready.serialTrans.push(['<div style="display: block; white-space: pre-wrap; overflow-wrap: break-word;">',
                 `${decoration(trans, trans_args.article)}</div>`].join(""));
         }
     }
     if (trans_args.article.quote != undefined) {
         html_ready.quote_html = 
-            `<div style="display: inline-block; white-space: pre-wrap; overflow-wrap: break-word;">${decoration(trans_args.article.quote, trans_args.article)}</div>`;
+            `<div style="display: block; white-space: pre-wrap; overflow-wrap: break-word;">${decoration(trans_args.article.quote, trans_args.article)}</div>`;
     }
     if (trans_args.article.reply != undefined) {
         html_ready.reply_html = [];
         for (let reply of trans_args.article.reply) html_ready.reply_html.push(
-            `<div style="display: inline-block; white-space: pre-wrap; overflow-wrap: break-word;">${decoration(reply, trans_args.article)}</div>`);
+            `<div style="display: block; white-space: pre-wrap; overflow-wrap: break-word;">${decoration(reply, trans_args.article)}</div>`);
     }
     if (!trans_args.no_group_info) {
         if (/^http/.test(trans_args.group.group_info)) {
@@ -370,9 +370,9 @@ async function setupHTML(trans_args, origin_text = "") {
         }
         else {
             html_ready.trans_group_html = (trans_args.group_html == undefined) ? 
-                ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0" style="display: inline-block; margin: 0px 0px 3px 1px;">', 
+                ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0" style="display: block; margin: 0px 0px 3px 1px;">', 
                 decoration(trans_args.group.group_info, trans_args.group), '</div>'].join("")
-                : ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0;" style="margin: 0px 0px 4px 1px; display: inline-block;">', trans_args.group_html, '</div>'].join("");
+                : ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0;" style="margin: 0px 0px 4px 1px; display: block;">', trans_args.group_html, '</div>'].join("");
         }
     }
     else html_ready.trans_group_html = "";
@@ -384,13 +384,13 @@ function decoration(text, template, origin_text = "") {
         : template ? `font-family: ${template.font_family}; font-size: ${template.size}; text-decoration: ${template.text_decoration}; color: ${template.color}; background: ${template.background};` : "all: inherit;";
 
     let ready_html = 
-        `<div  class="css-901oao css-1dbjc4n" style="display: inline-block; white-space: pre-wrap; overflow-wrap: break-word; ${css}">${parseString(text, origin_text)}</div>`;
+        `<div class="css-901oao css-1dbjc4n" style="display: block; white-space: pre-wrap; overflow-wrap: break-word; ${css}">${parseString(text, origin_text)}</div>`;
 
     return ready_html;
 }
 
 function parseString(text, origin_text = false) {
-    text = text.replace(/(#\S+)(?=[】\])\s])/g,'<span style="color:#1DA1F2;">$1</span>')
+    text = text.replace(/((#|@)\S+?)(?=[】\])\s])/g,'<span style="color:#1DA1F2;">$1</span>')
                 .replace(/((https?|ftp|file):\/\/[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|])/g,'<span style="color:#1DA1F2;">$1</span>');
 
     if (/\/e/.test(text) && origin_text != false) {
@@ -433,7 +433,7 @@ function parseString(text, origin_text = false) {
     return ready_html;
     
     function crtString(text_part) {
-        return `<span dir="auto">${text_part}</span>`;
+        return `<span style="overflow-wrap: break-word;">${text_part}</span>`;
     }
 }
 
