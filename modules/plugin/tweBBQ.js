@@ -160,6 +160,7 @@ async function cook(context, twitter_url, trans_args={}) {
                     if (article == null) return;
 
                     node_trans_article.className = article.firstElementChild.className;
+                    node_trans_article.style.width = "100%";
 
                     trans_place.appendChild(node_group_info);
                     trans_place.appendChild(node_trans_article);
@@ -549,9 +550,9 @@ function findTemplate(username, group_id) {
     return mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
         let coll = mongo.db('bot').collection('twiBBQ');
         try {
-            let res = await coll.findOne({username : username});
+            let res = await coll.findOne({group_id : group_id});
             if (res) return res.trans_args;
-            else res = await coll.findOne({group_id : group_id});
+            else res = await coll.findOne({username : username});
             return (res) ? res.trans_args : false;
         } catch(err) {console.error(err);
         } finally {mongo.close();}

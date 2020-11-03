@@ -2,6 +2,10 @@
   
 ## 2020
 
+## 11/03 2.4.0
+* Fix: 错误的style导致句首为emoji时，行宽仅有1字符
+* Update: 样式改为优先判断组号，再判断名字
+
 ## 11/01 2.3.9
 * Fix: 
   1. style中错误地标记display: inline-block，导致换行失败
