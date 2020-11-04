@@ -403,6 +403,15 @@ function parseString(text, origin_text = false) {
         }
     }
 
+    if (/\/c/.test(text) && origin_text != false) {
+        let ori = [...origin_text.matchAll(/(.)\1{3,}/g)];
+        let replacement = [...text.matchAll(/\/c/g)];
+        for (let i = 0; i < replacement.length; i++) {
+            if (i > ori.length -1) break;
+            text = text.replace(/\/c/, ori[i][0]);
+        }
+    }
+
     let capture = [...text.matchAll(TWEMOJI_REG)];
     let ready_html = "";
     let string_html = "";
@@ -537,8 +546,7 @@ function saveTemplate(context, username, unparsed_text) {
         try {
             await coll.updateOne({username : username}, 
                 {$set : {trans_args, group_id : context.group_id}}, {upsert : true});
-            // replyFunc(context, `成功保存了${username}的模板，恭喜恭喜`);
-            replyFunc(context, `恭喜👏 ${username} 👏恭喜\n  恭喜 👏 👏 👏 恭喜\n     恭喜 👏    👏 恭喜`);
+            replyFunc(context, `成功保存了${username}的模板，恭喜恭喜`);
         } catch(err) {
             console.error(err);
             replyFunc(context, "出错惹");
