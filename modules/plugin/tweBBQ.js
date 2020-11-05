@@ -60,7 +60,7 @@ async function cook(context, twitter_url, trans_args={}) {
             throw 1;
         }
         let browser = await puppeteer.launch({
-            args : ['--no-sandbox', '--disable-dev-shm-usage'], headless: true
+            args : ['--no-sandbox', '--disable-dev-shm-usage'], headless: false
         });
         let page = await browser.newPage();
         await page.setExtraHTTPHeaders({
@@ -107,7 +107,7 @@ async function cook(context, twitter_url, trans_args={}) {
                     }
                 }
 
-                let video = article.querySelector('[data-testid="videoPlayer"]');
+                let video = document.querySelector('[data-testid="videoPlayer"]');
                 if (video) {
                     let poster = "";
                     if (video.querySelector('[poster]') != null) poster = video.querySelector('[poster]').poster;
@@ -320,6 +320,7 @@ async function serialTweet(context, twitter_url, trans_args={}) {
     await browser.close();
 }
 
+
 function getTweet(twitter_url) {
     return axios({
         method:'GET',
@@ -412,6 +413,13 @@ function parseString(text, origin_text = false) {
         }
     }
 
+    if (/[\s\/](.{1,5})[\*x](\d{1,2})/.test(text)) {
+        let repeat = [...text.matchAll(/[\s\/](.{1,5})[\*x](\d{1,2})/g)];
+        for (let rpt of repeat) {
+            text = text.replace(rpt[0], new Array(parseInt(rpt[2])+1).join(rpt[1]));
+        }
+    }
+    
     let capture = [...text.matchAll(TWEMOJI_REG)];
     let ready_html = "";
     let string_html = "";
