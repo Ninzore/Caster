@@ -2,7 +2,6 @@ import { version } from './package.json';
 import { CQWebSocket } from 'cq-websocket';
 import config from './modules/config';
 import CQ from './modules/CQcode';
-import Logger from './modules/Logger';
 import _ from 'lodash';
 import minimist from 'minimist';
 import broadcast from './modules/broadcast';
@@ -96,17 +95,6 @@ bot.on('message.private', (e, context) => {
 
   if (args.broadcast) broadcast(bot, parseArgs(context.message, false, 'broadcast'));
 
-  // Ban
-  const { 'ban-u': bu, 'ban-g': bg } = args;
-  if (bu && typeof bu == 'number') {
-    Logger.ban('u', bu);
-    replyMsg(context, `已封禁用户${bu}`);
-  }
-  if (bg && typeof bg == 'number') {
-    Logger.ban('g', bg);
-    replyMsg(context, `已封禁群组${bg}`);
-  }
-
   // 停止程序（利用pm2重启）
   if (args.shutdown) process.exit();
 });
@@ -148,9 +136,6 @@ bot.connect();
 
 // 通用处理
 function commonHandle(e, context) {
-    // 黑名单检测
-    if (Logger.checkBan(context.user_id, context.group_id)) return true;
-
     const args = parseArgs(context.message);
     if (args.help) {
         replyMsg(context, 'https://github.com/Ninzore/BBQ/wiki');
