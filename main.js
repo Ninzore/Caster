@@ -3,7 +3,6 @@ import { CQWebSocket } from 'cq-websocket';
 import config from './modules/config';
 import CQ from './modules/CQcode';
 import Logger from './modules/Logger';
-import RandomSeed from 'random-seed';
 import _ from 'lodash';
 import minimist from 'minimist';
 import broadcast from './modules/broadcast';
@@ -14,10 +13,6 @@ import tweBBQ from "./modules/plugin/tweBBQ";
 
 // 常量
 const setting = config.bot;
-const rand = RandomSeed.create();
-
-const bot = new CQWebSocket(config.cqws);
-const logger = new Logger();
 
 // 开始
 bilibili.bilibiliReply(replyMsg);
@@ -195,26 +190,6 @@ function groupMsg(e, context) {
         e.stopPropagation();
         return;
     }
-
-    if (setting.repeat.enable) {
-        // 复读（
-        // 随机复读，rptLog得到当前复读次数
-        if (
-        logger.rptLog(group_id, user_id, context.message) >= setting.repeat.times &&
-        getRand() <= setting.repeat.probability
-        ) {
-        logger.rptDone(group_id);
-        // 延迟2s后复读
-        setTimeout(() => {
-            replyMsg(context, context.message);
-        }, 1000);
-        } else if (getRand() <= setting.repeat.commonProb) {
-        // 平时发言下的随机复读
-        setTimeout(() => {
-            replyMsg(context, context.message);
-        }, 1000);
-        }
-    }
 }
 
 
@@ -243,16 +218,6 @@ function replyMsg(context, message, at = false, reply = false) {
         });
         default: return;
     }
-}
-
-
-/**
- * 生成随机浮点数
- *
- * @returns 0到100之间的随机浮点数
- */
-function getRand() {
-    return rand.floatBetween(0, 100);
 }
 
 function getTime() {
