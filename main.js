@@ -13,7 +13,6 @@ import tweBBQ from "./modules/plugin/tweBBQ";
 
 // 常量
 const setting = config.bot;
-const bot = new CQWebSocket(config.cqws);
 
 // 开始
 bilibili.bilibiliReply(replyMsg);
