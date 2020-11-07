@@ -16,12 +16,6 @@
         "addFriendAnswers": [],
         "autoAddGroup": false,
         "enablePM": false,
-        "enableGM": true,
-        "repeat": {
-            "enable": true,
-            "times": 3,
-            "probability": 40,
-            "commonProb": 0.2
-        }
+        "enableGM": true
     }
 }
