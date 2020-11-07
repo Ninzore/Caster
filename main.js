@@ -2,7 +2,6 @@ import { version } from './package.json';
 import { CQWebSocket } from 'cq-websocket';
 import config from './modules/config';
 import CQ from './modules/CQcode';
-import Logger from './modules/Logger';
 import _ from 'lodash';
 import minimist from 'minimist';
 import broadcast from './modules/broadcast';
@@ -13,6 +12,7 @@ import tweBBQ from "./modules/plugin/tweBBQ";
 
 // 常量
 const setting = config.bot;
+const bot = new CQWebSocket(config.cqws);
 
 // 开始
 bilibili.bilibiliReply(replyMsg);
