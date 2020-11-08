@@ -1,5 +1,5 @@
-var axios = require('axios');
-var mongodb = require('mongodb').MongoClient;
+const axios = require('axios');
+const mongodb = require('mongodb').MongoClient;
 
 const db_port = 27017;
 const db_path = "mongodb://127.0.0.1:" + db_port;
@@ -11,6 +11,8 @@ const option_map = {
     "视频更新" : "video_only",
     "全部" : "all"
 } 
+
+let liveList = [];
 
 /** 用value找key*/
 function findKey(obj, value) {
@@ -82,21 +84,42 @@ function searchName(keyword = "") {
 }
 
 //choose 选择需要查找的人
-//num 选择需要获取的微博，0为置顶或者最新，1是次新，以此类推，只允许0到9
+//num 需要获取的微博，-1为置顶，0为最新，1是次新，以此类推，只允许0到9
 function getDynamicList(uid, num = 0) {
     let header = httpHeader(uid);
+    if (num == -1) {
+        header.params.need_top = 1;
+        num = 0;
+    }
     return axios(header).then(response => {
-            // console.log(card)
-            return (response.data.data.cards[num])
+            return (response.data.data.cards[num]);
         }).catch(err => console.error(err));
 }
 
 function getDynamicDetail(dynamic_id = "") {
     let header = httpHeader(0, dynamic_id, 0);
     return axios(header).then(response => {
-            // console.log(JSON.parse(response.data.data.card.card))
             return response.data.data.card;
         }).catch(err => console.error(err));
+}
+
+function checkliveStatus(mid) {
+    return axios({
+        method : "GET",
+        url : "https://api.live.bilibili.com/room/v1/Room/getRoomInfoOld",
+        headers : {
+            "authority": "api.live.bilibili.com",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.102 Safari/537.36",
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+            "cookie": "CURRENT_FNVAL=80; blackside_state=1; sid=b1ghamj1"
+        },
+        params : {mid : mid}
+    }).then(response => {
+        return response.data.data;
+    }).catch(err => {
+        console.error(err.response.data, "\nBilibili checkliveStatus error");
+        return false;
+    });
 }
 
 function dynamicProcess(dynamic) {
@@ -111,7 +134,7 @@ function dynamicProcess(dynamic) {
         if ("uname" in card.user) name = card.user.uname;
         else if ("name" in card.user) name = card.user.name;
     }
-    else if ("list" in card) name = card.list.name;
+    else if ("author" in card) name = card.author.name;
     
     //投稿
     if ("videos" in card) {
@@ -137,13 +160,24 @@ function dynamicProcess(dynamic) {
             else if ("description" in card.item && card.item.description.length > 0) text = card.item.description;
             if ("pictures" in card.item) {
                 let pictures = card.item.pictures;
-                for (let pic of pictures) pics += "[CQ:image,cache=0,file=" + pic.img_src + "]";  
+                for (let pic of pictures) pics += "[CQ:image,cache=0,file=" + pic.img_src + "]";
             }
         }
     }
-    else if ("title" in card && card.title.length > 0) text = "发布文章" + card.title;
-    // console.log(name)
-    // console.log(text)
+    else if ("summary" in card && card.summary == "点击进入查看全文>") {
+        text = "发布文章：" + card.title;
+        pics += "[CQ:image,cache=0,file=" + card.origin_image_urls[0] + "]";
+    }
+    
+    if ("desc" in dynamic) {
+        switch (dynamic.desc.type) {
+            case 64: {
+                text = `发布专栏：${card.title}\n${card.summary}`;
+                pics = `[CQ:image,cache=0,file=${card.banner_url}`;
+            }
+        }
+    }
+
     let dynamicObj = {
         name : name,
         text : text,
@@ -154,13 +188,12 @@ function dynamicProcess(dynamic) {
     return dynamicObj;
 }
 
-
 function addBiliSubscribe(context, name = "", option_nl) {
     var text = "";
     let group_id = context.group_id;
     let option = option_map[option_nl];
     searchName(name).then(name_card => {
-        if (name_card == undefined) sender(context, {}, "你名字写对了吗", true);
+        if (name_card == undefined) replyFunc(context, "你名字写对了吗", true);
         else getDynamicList(name_card.mid, 0).then(dynamic => {
             addData(dynamic.desc);
         });
@@ -184,25 +217,25 @@ function addBiliSubscribe(context, name = "", option_nl) {
                                 [group_id] : option,
                                 groups : [group_id]},
                     (err) => {
-                        if (err) text = "database subscribes update error";
+                        if (err) text = "bilibili addBiliSubscribe database subscribes insert error", err;
                         else text = `已订阅${name}的B站动态，模式为${option_nl}`;
-                        sender(context, {}, text, true);
+                        replyFunc(context, text, true);
+                        mongo.close();
                     });
             }
             else {
                 coll.findOneAndUpdate({uid : uid},
                                       {$addToSet : {groups : group_id}, $set : {[group_id] : option}},
                     (err, result) => {
-                        if (err) console.error("database subscribes update error", err);
+                        if (err) console.error("bilibili addBiliSubscribe database subscribes update error", err);
                         else {
-                            // console.log(result)
                             if (result.value.groups.includes(group_id)) text = "多次订阅有害我的身心健康";
                             else text = `已订阅${result.value.name}的B站动态，模式为${option_nl}`;
                          }
-                         sender(context, {}, text, true);
+                         replyFunc(context, text, true);
+                         mongo.close();
                      });
             }
-            mongo.close();
         });
     }
 }
@@ -211,7 +244,7 @@ function rmBiliSubscribe(context, name = "") {
     let group_id = context.group_id;
     var text = "";
     searchName(name).then(name_card => {
-        if (name_card == undefined) sender(context, {}, "你名字写对了吗", true);
+        if (name_card == undefined) replyFunc(context, "你名字写对了吗", true);
         else getDynamicList(name_card.mid, 0).then(dynamic => {
             rmData(dynamic.desc)
         });
@@ -232,7 +265,7 @@ function rmBiliSubscribe(context, name = "") {
                             else text = "已取消订阅" + name + "的B站动态";
                             if (result.value.groups.length <= 1) await coll.deleteOne({_id : result.value._id});
                         }
-                        sender(context, {}, text, true);
+                        replyFunc(context, text, true);
                         mongo.close();
                     });
             }
@@ -250,6 +283,24 @@ function checkBiliDynamic() {
                 mongo.close();
                 for (let i = 0; i < subscribes.length; i++) {
                     if (subscribes[i].groups.length > 0) {
+                        checkliveStatus(subscribes[i].uid).then(status => {
+                            if (status) {
+                                if (status.liveStatus === 1 && liveList.indexOf(subscribes[i].uid) == -1) {
+                                    liveList.push(subscribes[i].uid);
+                                    subscribes[i].groups.forEach(group_id => {
+                                        replyFunc({group_id:group_id, message_type : "group"}, 
+                                        `你订阅的${subscribes[i].name}开播啦！\n标题: ${status.title}\n${status.url}`);
+                                    });
+                                } else if (status.liveStatus === 0 && liveList.indexOf(subscribes[i].uid) != -1) {
+                                    liveList = liveList.filter(value => {return value != subscribes[i].uid});
+                                    subscribes[i].groups.forEach(group_id => {
+                                        replyFunc({group_id:group_id, message_type : "group"}, 
+                                        `你订阅的${subscribes[i].name}下播啦！`);
+                                    });
+                                }
+                            }
+                        });
+
                         getDynamicList(subscribes[i].uid, 0).then(dynamic => {
                             let last_timestamp = subscribes[i].timestamp;
                             let curr_timestamp = dynamic.desc.timestamp;
@@ -274,7 +325,7 @@ function checkBiliDynamic() {
                 let groups = subscribe.groups;
                 groups.forEach(group_id => {
                     if (checkOption(JSON.parse(dynamic.card)), subscribe[group_id]) {
-                        sender({group_id:group_id, message_type : "group"}, clean_dynamic, "");
+                        sender({group_id:group_id, message_type : "group"}, clean_dynamic);
                     }
                     else;
                 });
@@ -315,7 +366,6 @@ function checkBiliSubs(context) {
             let coll = mongo.db('bot').collection('bilibili');
             coll.find({groups : {$elemMatch : {$eq : group_id}}}, {projection: {_id : 0}})
                 .toArray().then(result => {
-                    // console.log(result);
                     if (result.length > 0) {
                         let name_list = [];
                         let option_nl = "仅原创";
@@ -326,7 +376,7 @@ function checkBiliSubs(context) {
                         text = "本群已订阅: " + name_list.join("\n");
                     }
                     else text = "你一无所有";
-                    sender(context, {}, text, true);
+                    replyFunc(context, text);
                     mongo.close();
                 });
         }
@@ -357,35 +407,39 @@ function clearSubs(context, group_id) {
     }).catch(err => console.error(err + " weibo checkWeiboSubs error, group_id= " + group_id));
 }
 
-function sender(context, dynamicObj = {}, others = "", at = false) {
-    let payload = "";
+function sender(context, dynamicObj = {}, at = false) {
+    let payload = [];
     if (Object.keys(dynamicObj).length != 0) {
-        payload = `${dynamicObj.name}的B站动态\n${dynamicObj.text}\n${dynamicObj.pics}\n${dynamicObj.video}`;
-        if (dynamicObj.rt_dynamic != 0) {
-            let rt_dynamic = dynamicObj.rt_dynamic
-            payload += `\n转发自${rt_dynamic.name}\n${rt_dynamic.text}\n${rt_dynamic.video}\n${rt_dynamic.pics}`;
+        for (let item in dynamicObj) {
+            if (item === "name") payload.push(dynamicObj[item] + "的B站动态");
+            else if (item === "rt_dynamic" && dynamicObj[item] != 0) {
+                let rt_payload = [];
+                for (let item in dynamicObj.rt_dynamic) {
+                    if (item === "name") rt_payload.push(["转发自", dynamicObj.rt_dynamic[item], "的B站动态"].join(""));
+                    else if (dynamicObj.rt_dynamic[item] != 0) rt_payload.push(dynamicObj.rt_dynamic[item]);
+                }
+                payload.push(rt_payload.join("\n"));
+            }
+            else if (dynamicObj[item] != 0) payload.push(dynamicObj[item]);
         }
-        replyFunc(context, payload, at);
-    }
-    else {
-        replyFunc(context, others, at);
+        replyFunc(context, payload.join("\n"), at);
     }
 }
 
 function rtBilibili(context, name = "", num = 0, dynamic_id = "") {
     if (dynamic_id != "") {
         getDynamicDetail(dynamic_id).then(dynamic => {
-            if (dynamic == undefined) sender(context, 0, "你码输错了", true);
+            if (dynamic == undefined) replyFunc(context, "你码输错了");
             else {
                 let clean_dynamic = dynamicProcess(dynamic);
-                sender(context, clean_dynamic, "");
+                sender(context, clean_dynamic);
             }
         });
     }
  
     else if (name != "") {
         searchName(name).then(name_card => {
-            if (name_card == undefined) sender(context, 0, "没这人", true);
+            if (name_card == undefined) replyFunc(context, "没这人", true);
             else getDynamicList(name_card.mid, num).then(dynamic => {
                 let clean_dynamic = dynamicProcess(dynamic);
                 sender(context, clean_dynamic);
@@ -398,7 +452,11 @@ function rtBilibili(context, name = "", num = 0, dynamic_id = "") {
 }
 
 function rtBiliByUrl(context){
-    let dynamic_id = /https:\/\/t.bilibili.com\/(\d+)/.exec(context.message)[1];
+    let dynamic_id = /\.com\/(\d+)|dynamic\/detail\/(\d+)/.exec(context.message).filter((noEmpty) => {return noEmpty != undefined})[1];
+    if (!dynamic_id) {
+        replyFunc("出错惹");
+        return;
+    }
     rtBilibili(context, "", 0, dynamic_id);
 }
 
@@ -411,24 +469,28 @@ function rtBiliByB23(context) {
             "User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.89 Safari/537.36",
             "Host" : "b23.tv"
         }
-    }).catch(res => {
-        // when using head methon there will be a Z_BUF_ERROR, code -5
-            if (res.errno === -5) {
-                path = res.request.path;
-                if (/^\/video/.test(path)) {
-                    let bv = path.substring(0, path.indexOf("?"));
-                    replyFunc(context, ["https://bilibili.com", bv].join(""));
-                }
-                else {
-                    let dynamic_id = /\d{18}/.exec(path)[0];
-                    rtBilibili(context, "", 0, dynamic_id);
-                }
-            }
-            else {
-                console.error(res.errno, res.code);
-                replyFunc(context, "出错啦");
-            }
-        });
+    }).then(res => {
+        switchPath(res);
+    }).catch(err => {
+        // when using head method there may be a Z_BUF_ERROR, code -5
+        if (err.errno === -5) switchPath(err);
+        else {
+            console.error(err.errno, err.code);
+            replyFunc(context, "出错啦");
+        }
+    });
+
+    function switchPath(res) {
+        path = res.request.path;
+        if (/^\/video/.test(path)) {
+            let bv = path.substring(0, path.indexOf("?"));
+            replyFunc(context, ["https://bilibili.com", bv].join(""));
+        }
+        else {
+            let dynamic_id = /\d{18}/.exec(path)[0];
+            rtBilibili(context, "", 0, dynamic_id);
+        }
+    }
 }
 
 function bilibiliCheck (context) {
@@ -439,7 +501,7 @@ function bilibiliCheck (context) {
         else if (/最新/.test(context.message)) (num = 0);
         else if (/上上上条/.test(context.message)) (num = 3);
         else if (/上上条/.test(context.message)) (num = 2);
-        else if (/上条/.test(context.message)) (num = 1);
+        else if (/上一?条/.test(context.message)) (num = 1);
 	    else if (/第.+?条/.test(context.message)) {
             let temp = /第([0-9]?[一二三四五六七八九]?)条/.exec(context.message)[1];
             if (temp==0 || temp=="零") (num = -1);
@@ -454,11 +516,12 @@ function bilibiliCheck (context) {
             else if (temp==9 || temp=="九") (num = 8);
         }
         else (num = 0);       
-        name = /看看(.+?)的?((第[0-9]?[一二三四五六七八九]?条)|(上*条)|(置顶)|(最新))?B站/i.exec(context.message)[1];
+        name = /看看(.+?)的?((第[0-9]?[一二三四五六七八九]?条)|(上{1,3}一?条)|(置顶)|(最新))?B站/i.exec(context.message)[1];
         rtBilibili(context, name, num);
         return true;
 	}
-    else if (/^看看https:\/\/t.bilibili.com\/(\d+).+?/i.test(context.message)) {
+    else if (/^看看https:\/\/t\.bilibili\.com\/(\d+).+?/i.test(context.message)
+        || /https:\/\/t\.bilibili\.com\/h5\/dynamic\/detail\/(\d+)/.test(context.message)) {
         rtBiliByUrl(context);
         return true;
     }
