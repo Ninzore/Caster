@@ -430,7 +430,13 @@ function parseString(text, origin_text = false) {
         let code = "";
         let part = "";
         for (let emoji of capture) {
-            code = emoji[0].codePointAt(0).toString(16);
+            let codeArr = [];
+            for (let emj of emoji[0]) {
+                codeArr.push(emj.codePointAt(0).toString(16));
+            }
+            code = codeArr.join("-");
+            // 对于个别不规范的 emoji 手动替换
+            if (code == "2763-fe0f") code = "2763";
             part = text.substring(offset, emoji.index);
             string_html = (part.length > 0) ? crtString(part) : "";
             emoji_html =
