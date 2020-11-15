@@ -17,5 +17,9 @@
         "autoAddGroup": false,
         "enablePM": false,
         "enableGM": true
+    },
+    "proxy": {
+        "host": "",
+        "port": 0
     }
 }
