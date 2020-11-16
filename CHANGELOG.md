@@ -2,6 +2,9 @@
   
 ## 2020
 
+## 11/16 2.5.0
+* Update: Twitter2.0
+
 ## 11/10 2.4.6
 * Update: Twitter模块跟进Wecab
 
