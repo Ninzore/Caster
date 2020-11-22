@@ -89,7 +89,7 @@ async function cook(context, twitter_url, trans_args={}) {
             await page.evaluate((html_ready, trans_args, tweet) => {
                 let banner = document.getElementsByTagName('header')[0];
                 banner.parentNode.removeChild(banner);
-                let header = document.getElementsByClassName("css-1dbjc4n r-aqfbo4 r-14lw9ot r-my5ep6 r-rull8r r-qklmqi r-gtdqiz r-ipm5af r-1g40b8q")[0];
+                let header = document.querySelector('main').firstChild.firstChild.firstChild.firstChild.firstChild.firstChild;
                 header.parentNode.removeChild(header);
                 let footer = document.getElementsByClassName('css-1dbjc4n r-aqfbo4 r-1p0dtai r-1d2f490 r-12vffkv r-1xcajam r-zchlnj')[0];
                 footer.parentNode.removeChild(footer);
@@ -175,7 +175,7 @@ async function cook(context, twitter_url, trans_args={}) {
             await page.evaluate(() => {
                 let banner = document.getElementsByTagName('header')[0];
                 banner.parentNode.removeChild(banner);
-                let header = document.getElementsByClassName("css-1dbjc4n r-aqfbo4 r-14lw9ot r-my5ep6 r-rull8r r-qklmqi r-gtdqiz r-ipm5af r-1g40b8q")[0];
+                let header = document.querySelector('main').firstChild.firstChild.firstChild.firstChild.firstChild.firstChild;
                 header.parentNode.removeChild(header);
                 let footer = document.getElementsByClassName('css-1dbjc4n r-aqfbo4 r-1p0dtai r-1d2f490 r-12vffkv r-1xcajam r-zchlnj')[0];
                 footer.parentNode.removeChild(footer);
@@ -405,7 +405,7 @@ function parseString(text, origin_text = false) {
     }
 
     if (/\/c/.test(text) && origin_text != false) {
-        let ori = [...origin_text.matchAll(/(.)\1{3,}/g)];
+        let ori = [...origin_text.matchAll(/([^\u3040-\u30FF])\1{3,}/g)];
         let replacement = [...text.matchAll(/\/c/g)];
         for (let i = 0; i < replacement.length; i++) {
             if (i > ori.length -1) break;
