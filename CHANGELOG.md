@@ -2,6 +2,13 @@
   
 ## 2020
 
+## 11/22 2.5.3
+* BBQ
+  * Fix: 变更定位引用正文的形式
+  * Feat: /字xN 现在支持 x×* 三个，以往为 *x
+* Translate:
+  * Refactor: 观察到潜在严重bug, 暂时移除翻译模块
+
 ## 11/22 2.5.2
 * BBQ
   * Fix: Twitter改版导致的header失效
