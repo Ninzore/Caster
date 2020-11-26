@@ -7,7 +7,7 @@ import minimist from 'minimist';
 import broadcast from './modules/broadcast';
 import bilibili from './modules/plugin/bilibili';
 import twitter from './modules/plugin/twitter';
-import translate from "./modules/plugin/translate";
+// import translate from "./modules/plugin/translate";
 import tweBBQ from "./modules/plugin/tweBBQ";
 
 // 常量
@@ -17,7 +17,7 @@ const bot = new CQWebSocket(config.cqws);
 // 开始
 bilibili.bilibiliReply(replyMsg);
 twitter.twitterReply(replyMsg);
-translate.transReply(replyMsg);
+// translate.transReply(replyMsg);
 tweBBQ.cookTweReply(replyMsg);
 
 setTimeout(() => bilibili.checkBiliDynamic(replyMsg), 20000);
@@ -166,13 +166,12 @@ function groupMsg(e, context) {
         e.stopPropagation();
         return;
     }
-    // 进入或退出搜图模式
-    const { group_id, user_id } = context;
 
     if (bilibili.bilibiliCheck(context) ||
         twitter.twitterAggr(context) ||
-        tweBBQ.complex(context, replyMsg) ||
-        translate.transEntry(context)) {
+        tweBBQ.complex(context, replyMsg) 
+        // translate.transEntry(context)
+        ) {
         e.stopPropagation();
         return;
     }
