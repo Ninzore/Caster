@@ -34,7 +34,6 @@ const defaultTemplate = {
     cover_origin_in_reply : false,
     no_group_info_in_reply : false
 }
-
 let replyFunc = (context, msg, at = false) => {};
 
 function cookTweReply(replyMsg) {
@@ -124,9 +123,9 @@ async function cook(context, twitter_url, trans_args={}) {
                 }
 
                 if (trans_args.article.quote != undefined) {
-                    let quote_block = document.querySelector('[role="blockquote"]')
+                    let quote_block = document.querySelector('[role="blockquote"]');
                     if (!quote_block) quote_block = document.getElementsByClassName("r-dap0kf")[0];
-                    quote_block.firstChild.children[1].lastChild.innerHTML = html_ready.quote_html;
+                    quote_block.firstChild.children[1].querySelector("[lang]").innerHTML = html_ready.quote_html;
                 }
 
                 if (trans_args.article.choice != undefined) {
@@ -413,8 +412,8 @@ function parseString(text, origin_text = false) {
         }
     }
 
-    if (/[\s\/](.{1,5})[\*x](\d{1,2})/.test(text)) {
-        let repeat = [...text.matchAll(/[\s\/](.{1,5})[\*x](\d{1,2})/g)];
+    if (/[\s\/](.{1,5})[x×*]\d{1,2}/.test(text)) {
+        let repeat = [...text.matchAll(/[\s\/](.{1,5})[x×*]\d{1,2}/g)];
         for (let rpt of repeat) {
             text = text.replace(rpt[0], new Array(parseInt(rpt[2])+1).join(rpt[1]));
         }
