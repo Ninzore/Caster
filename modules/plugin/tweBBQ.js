@@ -58,8 +58,9 @@ async function cook(context, twitter_url, trans_args={}) {
         if (!tweet) {
             throw 1;
         }
+        
         let browser = await puppeteer.launch({
-            args : ['--no-sandbox', '--disable-dev-shm-usage'], headless: false
+            args : ['--no-sandbox', '--disable-dev-shm-usage']
         });
         let page = await browser.newPage();
         await page.setExtraHTTPHeaders({
@@ -108,18 +109,26 @@ async function cook(context, twitter_url, trans_args={}) {
 
                 let video = document.querySelector('[data-testid="videoPlayer"]');
                 if (video) {
-                    let poster = "";
+                    let poster = false;
                     if (video.querySelector('[poster]') != null) poster = video.querySelector('[poster]').poster;
                     else {
-                        let media = tweet.extended_entities.media;
-                        for (let i = 0; i < media.length; i++) {
-                            if (media[i].type == "animated_gif" || media[i].type == "video") {
-                                poster = media[i].media_url_https;
-                                break;
+                        let media = false;
+                        if ("extended_entities" in tweet && "media" in tweet.extended_entities) {
+                            media = tweet.extended_entities.media
+                        } else if ("quoted_status" in tweet && "media" in tweet.quoted_status.extended_entities) {
+                            media = tweet.quoted_status.extended_entities.media;
+                        }
+
+                        if (media) {
+                            for (let i = 0; i < media.length; i++) {
+                                if (media[i].type == "animated_gif" || media[i].type == "video") {
+                                    poster = media[i].media_url_https;
+                                    break;
+                                }
                             }
                         }
                     }
-                    video.firstChild.lastChild.innerHTML = `<img style="max-height:100%; max-width:100%" src="${poster}">`;
+                    if (poster) video.firstChild.lastChild.innerHTML = `<img style="max-height:100%; max-width:100%" src="${poster}">`;
                 }
 
                 if (trans_args.article.quote != undefined) {
@@ -319,7 +328,6 @@ async function serialTweet(context, twitter_url, trans_args={}) {
     await browser.close();
 }
 
-
 function getTweet(twitter_url) {
     return axios({
         method:'GET',
@@ -331,9 +339,9 @@ function getTweet(twitter_url) {
             "include_ext_alt_text" : "true",
             "include_card_uri" : "true",
             "tweet_mode" : "extended",
-            "trim_user" : "false"
+            "trim_user" : "true"
         }
-    }).then(res => {return res.data[0];});
+    }).then(res => {return res.data[0];}).catch(err => console.error(err.response.status, err.response.statusText));
 }
 
 async function setupHTML(trans_args, origin_text = "") {
@@ -413,7 +421,7 @@ function parseString(text, origin_text = false) {
     }
 
     if (/[\s\/](.{1,5})[x×*]\d{1,2}/.test(text)) {
-        let repeat = [...text.matchAll(/[\s\/](.{1,5})[x×*]\d{1,2}/g)];
+        let repeat = [...text.matchAll(/[\s\/](.{1,5})[x×*](\d{1,2})/g)];
         for (let rpt of repeat) {
             text = text.replace(rpt[0], new Array(parseInt(rpt[2])+1).join(rpt[1]));
         }

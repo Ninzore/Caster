@@ -2,6 +2,11 @@
   
 ## 2020
 
+## 11/27 2.5.4
+* BBQ
+  * Fix: 有gif时无法替换为poster
+  * Feat: 获取Twitter时如果失败会catch error
+
 ## 11/22 2.5.3
 * BBQ
   * Fix: 变更定位引用正文的形式
