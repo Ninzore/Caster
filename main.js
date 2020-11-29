@@ -9,6 +9,7 @@ import bilibili from './modules/plugin/bilibili';
 import twitter from './modules/plugin/twitter';
 // import translate from "./modules/plugin/translate";
 import tweBBQ from "./modules/plugin/tweBBQ";
+import marshmallow from './modules/plugin/marshmallow';
 
 // 常量
 const setting = config.bot;
@@ -169,6 +170,7 @@ function groupMsg(e, context) {
 
     if (bilibili.bilibiliCheck(context) ||
         twitter.twitterAggr(context) ||
+        marshmallow.prepare(context, replyMsg) ||
         tweBBQ.complex(context, replyMsg) 
         // translate.transEntry(context)
         ) {
