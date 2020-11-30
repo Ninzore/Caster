@@ -2,7 +2,7 @@ const puppeteer = require('puppeteer');
 
 let replyFunc = (context, msg, at = false) => {};
 
-async function cookMarshmallow(context, text) {
+async function toast(context, text, reply = true) {
     let browser = await puppeteer.launch({
         args : ['--no-sandbox', '--disable-dev-shm-usage']
     });
@@ -20,22 +20,26 @@ async function cookMarshmallow(context, text) {
         return;
     }
 
-    let content_box = await page.$('.card').then((card_box) => {return card_box.boundingBox()});
+    let content_box = await page.$('.message-card').then((card_box) => {return card_box.boundingBox()});
 
     await page.setViewport({
-        width: content_box.x + content_box.width,
-        height: content_box.height + 100,
+        width: 630,
+        height: Math.round(content_box.height + 100),
         deviceScaleFactor: 1.6
     });
 
-    await page.screenshot({
+    let pic = await page.screenshot({
         type : "jpeg",
         quality : 100,
         encoding : "base64",
-        clip : {x : content_box.x, y : 10, width : 617, height : content_box.y + content_box.height - 15}
-    }).then(pic64 => replyFunc(context, `[CQ:image,file=base64://${pic64}]`));
+        clip : {x : content_box.x, y : content_box.y, width : 598, height : Math.round(content_box.height)}
+    }).then(pic64 => {
+        if (reply === true) replyFunc(context, `[CQ:image,file=base64://${pic64}]`);
+        return pic64;
+    });
 
     await browser.close();
+    return pic;
 }
 
 function prepare(context, replyMsg) {
@@ -47,7 +51,7 @@ function prepare(context, replyMsg) {
         else {
             let text = context.message.substring(5, context.message.length).trim();
             if (text.length < 1500) {
-                cookMarshmallow(context, text);
+                toast(context, text);
             }
             else {
                 replyFunc(context, "别，这个有点长", true);
@@ -58,4 +62,4 @@ function prepare(context, replyMsg) {
     else return false;
 }
 
-module.exports = {prepare};
+module.exports = {prepare, toast};
