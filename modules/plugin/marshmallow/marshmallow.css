@@ -1,84 +1,101 @@
-.card {
+* {
+    box-sizing: border-box
+}
+*, * {
     box-sizing: border-box;
 }
-.card-wrapper {
-    transform: scale(0.996667);
-    transform-origin: left top;
-    background-color: #F3969A;
+div {
     display: block;
-    overflow: hidden;
-    width: 600px;
-    align-items: center;
-    padding: 10px 10px 0px 10px;
+}
+.message-card-wrapper {
+    width: 100%;
+    overflow: hidden
 }
 .message-card {
-    padding: 10px 10px 0px 10px;
-    box-sizing: border-box;
-    min-height: 210px;
+    background-color: #F3969A;
+    padding: 10px 10px 0;
+    text-align: center;
     width: 600px;
-    margin: auto;
-    display: block;
+    transform-origin: left top;
+    transform: scale(0.996667);
 }
-.card-body {
-    padding: 10px 0 0 0;
-    box-sizing: border-box;
-    width: 600px;
-    margin: auto;
-    display: block;
+
+.message-card__body {
     background-color: white;
     border-radius: 8px;
+    position: relative
 }
-.content-wrapper {
-    position: relative;
-    display: block;
-    text-align: center;
-    max-width: 520px;
-    padding: 42px 0 20px;
+
+.message-card__text-wrapper {
+    min-height: 210px;
+    padding: 0px 0 0;
+    display: -webkit-box;
     display: flex;
-    margin: auto;
-    text-align: left;
-    align-items: center;
-    -webkit-box-direction: normal;
     -webkit-box-align: center;
+    align-items: center
 }
-.content {
-    margin: auto;
-    position: relative;
-    z-index: 2;
-    box-sizing: border-box;
+
+.message-card__text {
     display: block;
+    max-width: 520px;
     font-size: 24px;
     color: #333333;
-    font-family: SourceHan Sans;
-    font-weight: 400;
+    font-family: "Source Han Sans", "Noto Sans", sans-serif;
     -webkit-font-smoothing: antialiased;
-    line-height: 44px;
+    text-rendering: optimizeLegibility;
+    text-align: left;
+    margin: auto;
+    line-height: 38px;
     white-space: pre-wrap;
-    
     word-break: break-all;
+    position: relative;
+    z-index: 2
 }
-.logo-wrapper {
-    height: 50px;
-    padding-top: 5px;
-    display: block;
-    text-align: center;
-    line-height: 1.5em;
-}
-.logo {
-    height: 40px;
-    width: 40px;
-    vertical-align: middle;
-}
-.brand {
+
+.message-card__brand-wrapper {
+    font-family: sans-serif;
     padding: 0.5em 0;
-    text-align: center;
-    display: flex;
-    justify-content: center;
-    font-family: SourceHan Sans;
     color: #aaa;
-    line-height: 1.5em;
-    font-size: 1rem;
-    -webkit-font-smoothing: antialiased;
-    align-items: center;
+    display: -webkit-box;
+    display: flex;
+    -webkit-box-pack: center;
+    justify-content: center;
     -webkit-box-align: center;
+    align-items: center
+}
+
+.message-card__flower {
+    position: absolute;
+    width: 60px;
+    right: 0.5em;
+    bottom: 0.5em
+}
+
+.message-card__logo-wrapper {
+    height: 50px;
+    padding: 5px 0
+}
+
+.message-card__logo {
+    width: 40px;
+    height: 40px
+}
+
+.message-card__emoji {
+    height: 1em;
+    width: 1em;
+    margin: 0 .05em 0 .1em;
+    vertical-align: -0.1em
+}
+
+.message-card__brand-emoji {
+    height: 1.5em;
+    width: 1.5em;
+    margin: 0 .3em .1em;
+    vertical-align: -0.1em
+}
+
+.message-card__censored {
+    margin: 0 .05em 0 .1em;
+    vertical-align: -0.1em
 }
