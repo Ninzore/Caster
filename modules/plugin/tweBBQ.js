@@ -1,6 +1,7 @@
 const puppeteer = require('puppeteer');
 const mongodb = require('mongodb').MongoClient;
 const axios = require('axios');
+const marshmallow = require("./marshmallow");
 
 const DB_PORT = 27017;
 const DB_PATH = "mongodb://127.0.0.1:" + DB_PORT;
@@ -58,7 +59,7 @@ async function cook(context, twitter_url, trans_args={}) {
         if (!tweet) {
             throw 1;
         }
-        
+
         let browser = await puppeteer.launch({
             args : ['--no-sandbox', '--disable-dev-shm-usage']
         });
@@ -83,6 +84,10 @@ async function cook(context, twitter_url, trans_args={}) {
             if (trans_args.article.retweet != undefined) {
                 trans_args.article.retweet = `<div class="css-901oao">${decoration(trans_args.article.retweet, trans_args.article)}</div>`;
             }
+            if (trans_args.article.marshmallow != undefined && trans_args.article.marshmallow) {
+                trans_args.article.marshmallow = "data:image/jpeg;base64," + await marshmallow.toast({}, trans_args.article.marshmallow, false);
+            }
+
             html_ready.logo_in_reply = 
                 `<div style="margin: 1px 0px 2px 1px; display: inline-block;">${decoration(defaultTemplate.group.logo_in_reply, defaultTemplate.group)}</div>`;
 
@@ -105,6 +110,12 @@ async function cook(context, twitter_url, trans_args={}) {
                     if (articles[0].querySelector('[href="/settings/safety"]') != null) {
                         articles[0].querySelector('[href="/settings/safety"]').parentElement.parentElement.parentElement.children[1].firstChild.click();
                     }
+                }
+                
+                let card_img = document.querySelector('img[src*=card_img]');
+                if (card_img != null && trans_args.article.marshmallow != undefined) {
+                    card_img.parentElement.firstChild.style.backgroundImage = `url(${trans_args.article.marshmallow})`
+                    card_img.src = trans_args.article.marshmallow;
                 }
 
                 let video = document.querySelector('[data-testid="videoPlayer"]');
@@ -420,7 +431,7 @@ function parseString(text, origin_text = false) {
         }
     }
 
-    if (/[\s\/](.{1,5})[x×*]\d{1,2}/.test(text)) {
+    if (/[\s\/](.{1,5})[x×*](\d{1,2})/.test(text)) {
         let repeat = [...text.matchAll(/[\s\/](.{1,5})[x×*](\d{1,2})/g)];
         for (let rpt of repeat) {
             text = text.replace(rpt[0], new Array(parseInt(rpt[2])+1).join(rpt[1]));
@@ -477,6 +488,7 @@ function setTemplate(unparsed) {
         "字体" : "font_family",
         "装饰" : "text_decoration",
         "css" : "css",
+        "棉花糖" : "marshmallow",
         "汉化组" : "group_info",
         "汉化组大小" : "group_size",
         "汉化组颜色" : "group_color",
@@ -693,6 +705,7 @@ function complex(context) {
         saveTemplate(context, username, unparsed);
         return true;
     }
+    else return false;
 }
 
 module.exports = {complex, cookTweReply};
