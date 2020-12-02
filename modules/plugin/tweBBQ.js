@@ -84,8 +84,12 @@ async function cook(context, twitter_url, trans_args={}) {
             if (trans_args.article.retweet != undefined) {
                 trans_args.article.retweet = `<div class="css-901oao">${decoration(trans_args.article.retweet, trans_args.article)}</div>`;
             }
+            if (trans_args.article.image != undefined && trans_args.article.image) {
+                trans_args.article.image = await axios.get(trans_args.article.image, {responseType:'arraybuffer'})
+                    .then(res => {return Buffer.from(res.data, 'binary').toString('base64')}).catch(err => {throw "获取图片错误"});
+            }
             if (trans_args.article.marshmallow != undefined && trans_args.article.marshmallow) {
-                trans_args.article.marshmallow = "data:image/jpeg;base64," + await marshmallow.toast({}, trans_args.article.marshmallow, false);
+                trans_args.article.image = await marshmallow.toast({}, trans_args.article.marshmallow, false);
             }
 
             html_ready.logo_in_reply = 
@@ -112,10 +116,19 @@ async function cook(context, twitter_url, trans_args={}) {
                     }
                 }
                 
-                let card_img = document.querySelector('img[src*=card_img]');
-                if (card_img != null && trans_args.article.marshmallow != undefined) {
-                    card_img.parentElement.firstChild.style.backgroundImage = `url(${trans_args.article.marshmallow})`
-                    card_img.src = trans_args.article.marshmallow;
+                if (trans_args.article.image != undefined) {
+                    trans_args.article.image = "data:image/jpeg;base64," + trans_args.article.image;
+
+                    let card_img = document.querySelector('img[src*=card_img]');
+                    let image = document.querySelector('img[alt="图像"][src^="https://pbs.twimg"]');
+                    if (card_img != null) {
+                        card_img.parentElement.firstChild.style.backgroundImage = `url(${trans_args.article.image})`
+                        card_img.src = trans_args.article.image;
+                    }
+                    else if (image != null) {
+                        image.parentElement.firstChild.style.backgroundImage = `url(${trans_args.article.image})`
+                        image.src = trans_args.article.image;
+                    }
                 }
 
                 let video = document.querySelector('[data-testid="videoPlayer"]');
@@ -488,6 +501,7 @@ function setTemplate(unparsed) {
         "字体" : "font_family",
         "装饰" : "text_decoration",
         "css" : "css",
+        "插图" : "image",
         "棉花糖" : "marshmallow",
         "汉化组" : "group_info",
         "汉化组大小" : "group_size",
@@ -533,7 +547,13 @@ function setTemplate(unparsed) {
             else if (style == "serialTrans") {
                 trans_args.article.serialTrans = option[1].split(/[;；]/, 10);
             }
-            else trans_args.article[style] = option[1];
+            else if (style == "image" && /\[CQ:image/.test(option[1])) {
+                trans_args.article.image = /(http.+?)\?/.exec(option.join(""))[1];
+            }
+            else {
+                if (/\[CQ:image/.test(option[1])) err = `在${option[0]}这个位置不能插图`;
+                trans_args.article[style] = option[1];
+            }
         }
     }
 
