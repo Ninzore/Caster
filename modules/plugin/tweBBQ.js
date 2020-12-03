@@ -400,6 +400,7 @@ async function setupHTML(trans_args, origin_text = "") {
             let img64 = "data:image/jpeg;base64," + await axios.get(trans_args.group.group_info, {responseType:'arraybuffer'})
                                                                 .then(res => {return Buffer.from(res.data, 'binary').toString('base64')});
             html_ready.trans_group_html = `<img style="margin: 2px 0px -3px 1px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
+            console.log(trans_args.group.size)
         }
         else {
             html_ready.trans_group_html = (trans_args.group_html == undefined) ? 
@@ -429,18 +430,25 @@ function parseString(text, origin_text = false) {
     if (/\/e/.test(text) && origin_text != false) {
         let ori = [...origin_text.matchAll(TWEMOJI_GROUP_REG)];
         let replacement = [...text.matchAll(/\/e/g)];
-        for (let i = 0; i < replacement.length; i++) {
-            if (i > ori.length -1) break;
-            text = text.replace(/\/e/, ori[i][0]);
+
+        if (replacement != null) {
+            for (let i = 0; i < replacement.length; i++) {
+                if (i > ori.length -1) break;
+                text = text.replace(/\/e/, ori[i][0]);
+            }
         }
     }
 
     if (/\/c/.test(text) && origin_text != false) {
-        let ori = [...origin_text.matchAll(/([^\u3040-\u30FF])\1{3,}/g)];
+        let ori = [...origin_text
+            .matchAll(/[^\d\w\u2600-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5]{3,}/g)];
         let replacement = [...text.matchAll(/\/c/g)];
-        for (let i = 0; i < replacement.length; i++) {
-            if (i > ori.length -1) break;
-            text = text.replace(/\/c/, ori[i][0]);
+
+        if (replacement != null) {
+            for (let i = 0; i < replacement.length; i++) {
+                if (i > ori.length -1) break;
+                text = text.replace(/\/c/, ori[i][0]);
+            }
         }
     }
 
@@ -593,7 +601,7 @@ function saveTemplate(context, username, unparsed_text) {
         try {
             await coll.updateOne({username : username}, 
                 {$set : {trans_args, group_id : context.group_id}}, {upsert : true});
-            replyFunc(context, `成功保存了${username}的模板，恭喜恭喜`);
+            replyFunc(context, `成功保存了${username}的模板`);
         } catch(err) {
             console.error(err);
             replyFunc(context, "出错惹");
