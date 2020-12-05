@@ -30,6 +30,7 @@ const defaultTemplate = {
         text_decoration : "",
         logo_in_reply : "翻译"
     },
+    extre : {},
     cover_origin : false,
     no_group_info : false,
     cover_origin_in_reply : false,
@@ -74,6 +75,9 @@ async function cook(context, twitter_url, trans_args={}) {
         await page.goto(twitter_url, {waitUntil : "networkidle0"});
 
         if (trans_args && Object.keys(trans_args).length > 0) {
+            if ("extra" in trans_args && "replace" in trans_args.extra && trans_args.extra.replace) {
+                tweet.full_text = textAlter(trans_args.extra.replace, tweet.full_text);
+            }
             let html_ready = await setupHTML(trans_args, tweet.full_text);
             if (trans_args.cover_origin != undefined && trans_args.cover_origin_in_reply == undefined) {
                 trans_args.cover_origin_in_reply = trans_args.cover_origin;
@@ -400,7 +404,6 @@ async function setupHTML(trans_args, origin_text = "") {
             let img64 = "data:image/jpeg;base64," + await axios.get(trans_args.group.group_info, {responseType:'arraybuffer'})
                                                                 .then(res => {return Buffer.from(res.data, 'binary').toString('base64')});
             html_ready.trans_group_html = `<img style="margin: 2px 0px -3px 1px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
-            console.log(trans_args.group.size)
         }
         else {
             html_ready.trans_group_html = (trans_args.group_html == undefined) ? 
@@ -439,11 +442,28 @@ function parseString(text, origin_text = false) {
         }
     }
 
+    if (/^[^\/]\/[\u4E00-\u9FCB]/.test(text)) {
+        let pattern = [text.substring(0, 3)];
+        text = text.substring(3, text.length);
+        origin_text = textAlter(pattern, origin_text);
+    }
+
+    if (/\/z/.test(text) && origin_text != false) {
+        let ori = [...origin_text.matchAll(/([\u4E00-\u9FCB])\1{3,}/g)];
+        let replacement = [...text.matchAll(/\/z/g)];
+        
+        if (replacement != null) {
+            for (let i = 0; i < replacement.length; i++) {
+                if (i > ori.length -1) break;
+                text = text.replace(/\/z/, ori[i][0]);
+            }
+        }
+    }
+
     if (/\/c/.test(text) && origin_text != false) {
         let ori = [...origin_text
-            .matchAll(/[^\d\w\u2600-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5]{3,}/g)];
+            .matchAll(/([^\d\w\u2600-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]|[・ー゛゜]){3,}/g)];
         let replacement = [...text.matchAll(/\/c/g)];
-
         if (replacement != null) {
             for (let i = 0; i < replacement.length; i++) {
                 if (i > ori.length -1) break;
@@ -494,8 +514,22 @@ function parseString(text, origin_text = false) {
     }
 }
 
+function textAlter(patterns, text) {
+    for (let pat of patterns) {
+        let alt = pat.split("/");
+        let pattern = [`(${alt[0]})`, "\\1{3,}"].join("");
+        let replacement = text.match(new RegExp(pattern, "g"));
+
+        for (let rpt of replacement) {
+            let replaced = rpt.replace(new RegExp(`${alt[0]}`, "g"), alt[1]);
+            text = text.replace(new RegExp(`${rpt}`, "g"), replaced);
+        }
+    }
+    return text;
+}
+
 function setTemplate(unparsed) {
-    let trans_args = {article : {}, group : {}};
+    let trans_args = {article : {}, group : {}, extra : {}};
     let style_options = unparsed.split(/[+＋]/);
     let option = "";
     let style = "";
@@ -509,6 +543,7 @@ function setTemplate(unparsed) {
         "字体" : "font_family",
         "装饰" : "text_decoration",
         "css" : "css",
+        "替换" : "replace",
         "插图" : "image",
         "棉花糖" : "marshmallow",
         "汉化组" : "group_info",
@@ -557,6 +592,9 @@ function setTemplate(unparsed) {
             }
             else if (style == "image" && /\[CQ:image/.test(option[1])) {
                 trans_args.article.image = /(http.+?)\?/.exec(option.join(""))[1];
+            }
+            else if (style == "replace" && /.\/[\u4E00-\u9FCB]/.test(option[1])) {
+                trans_args.extra.replace = option[1].split(/[,，]/).filter((noEmpty) => {return noEmpty != undefined && noEmpty.length > 0});
             }
             else {
                 if (/\[CQ:image/.test(option[1])) err = `在${option[0]}这个位置不能插图`;
