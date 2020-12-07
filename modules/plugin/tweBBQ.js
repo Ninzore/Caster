@@ -75,6 +75,11 @@ async function cook(context, twitter_url, trans_args={}) {
         await page.goto(twitter_url, {waitUntil : "networkidle0"});
 
         if (trans_args && Object.keys(trans_args).length > 0) {
+            if ("urls" in tweet.entities && tweet.entities.urls.length > 0) {
+                for (let i = 0; i <  tweet.entities.urls.length; i++) {
+                    tweet.full_text = tweet.full_text.replace(tweet.entities.urls[i].url, tweet.entities.urls[i].expanded_url);
+                }
+            }
             if ("extra" in trans_args && "replace" in trans_args.extra && trans_args.extra.replace) {
                 tweet.full_text = textAlter(trans_args.extra.replace, tweet.full_text);
             }
@@ -427,8 +432,17 @@ function decoration(text, template, origin_text = "") {
 }
 
 function parseString(text, origin_text = false) {
-    text = text.replace(/((#|@)\S+?)(?=[】\])\s])/g,'<span style="color:#1DA1F2;">$1</span>')
-                .replace(/((https?|ftp|file):\/\/[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|])/g,'<span style="color:#1DA1F2;">$1</span>');
+    if (/\/u/.test(text) && origin_text != false) {
+        let ori = [...origin_text.matchAll(/([--:\w?@%&+~#=]*\.[a-z]{2,4}\/{0,2})((?:[?&](?:\w+)=(?:\w+))+|[--:\w?@%&+~#=]+)?/g)];
+        let replacement = text.match(/\/u/g);
+        if (replacement != null) {
+            for (let i in replacement) {
+                if (i > ori.length -1) break;
+                ori[i][0] = ori[i][0].replace(/https?:\/\//, "");
+                text = text.replace(/\/u/, ori[i][0]);
+            }
+        }
+    }
 
     if (/\/e/.test(text) && origin_text != false) {
         let ori = [...origin_text.matchAll(TWEMOJI_GROUP_REG)];
@@ -451,7 +465,7 @@ function parseString(text, origin_text = false) {
     if (/\/z/.test(text) && origin_text != false) {
         let ori = [...origin_text.matchAll(/([\u4E00-\u9FCB])\1{3,}/g)];
         let replacement = [...text.matchAll(/\/z/g)];
-        
+
         if (replacement != null) {
             for (let i = 0; i < replacement.length; i++) {
                 if (i > ori.length -1) break;
@@ -462,8 +476,9 @@ function parseString(text, origin_text = false) {
 
     if (/\/c/.test(text) && origin_text != false) {
         let ori = [...origin_text
-            .matchAll(/([^\d\w\u2600-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]|[・ー゛゜]){3,}/g)];
+            .matchAll(/([^\u2600-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]|[・ー゛゜]){3,}/g)];
         let replacement = [...text.matchAll(/\/c/g)];
+
         if (replacement != null) {
             for (let i = 0; i < replacement.length; i++) {
                 if (i > ori.length -1) break;
@@ -471,6 +486,9 @@ function parseString(text, origin_text = false) {
             }
         }
     }
+
+    text = text.replace(/((#|@)\S+?)(?=[】\])\s\n])/g,'<span style="color:#1DA1F2;">$1</span>')
+        .replace(/(([--:\w?@%&+~#=]*\.[a-z]{2,4}\/{0,2})((?:[?&](?:\w+)=(?:\w+))+|[--:\w?@%&+~#=]+)?)/g,'<span style="color:#1DA1F2;">$1</span>');
 
     if (/[\s\/](.{1,5})[x×*](\d{1,2})/.test(text)) {
         let repeat = [...text.matchAll(/[\s\/](.{1,5})[x×*](\d{1,2})/g)];
