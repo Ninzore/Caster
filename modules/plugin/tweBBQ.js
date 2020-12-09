@@ -476,7 +476,7 @@ function parseString(text, origin_text = false) {
 
     if (/\/c/.test(text) && origin_text != false) {
         let ori = [...origin_text
-            .matchAll(/([^\u2600-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]|[・ー゛゜]){3,}/g)];
+            .matchAll(/([^\d\w\u2600-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]|[_・ー゛゜]|(\w)\2){3,}(?![\ud800-\udfff])/g)];
         let replacement = [...text.matchAll(/\/c/g)];
 
         if (replacement != null) {
