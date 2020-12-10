@@ -477,11 +477,16 @@ function parseString(text, origin_text = false) {
     if (/\/c/.test(text) && origin_text != false) {
         let ori = [...origin_text
             .matchAll(/([^\d\w\u2600-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]|[_・ー゛゜]|(\w)\2){3,}(?![\ud800-\udfff])/g)];
-        let replacement = [...text.matchAll(/\/c/g)];
+        let replacement = text.match(/\/c/g);
 
         if (replacement != null) {
             for (let i = 0; i < replacement.length; i++) {
                 if (i > ori.length -1) break;
+                let last_code = ori[i][0].charCodeAt(ori[i][0].length - 1);
+                if (last_code > 0xd800 && last_code < 0xdfff) {
+                    let end = ori[i].index + ori[i][0].length;
+                    ori[i][0] = ori[i][0] + origin_text.substring(end, end + 1);
+                }
                 text = text.replace(/\/c/, ori[i][0]);
             }
         }
