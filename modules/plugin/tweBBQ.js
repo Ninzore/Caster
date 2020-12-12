@@ -445,17 +445,17 @@ function parseString(text, origin_text = false) {
     }
 
     if (/\/e/.test(text) && origin_text != false) {
-        let ori = [...origin_text.matchAll(TWEMOJI_GROUP_REG)];
-        let replacement = [...text.matchAll(/\/e/g)];
+        let ori = origin_text.match(TWEMOJI_GROUP_REG);
+        let replacement = text.match(/\/e/g);
 
         if (replacement != null) {
             for (let i = 0; i < replacement.length; i++) {
                 if (i > ori.length -1) break;
-                text = text.replace(/\/e/, ori[i][0]);
+                text = text.replace(/\/e/, ori[i]);
             }
         }
     }
-
+  
     if (/^[^\/]\/[\u4E00-\u9FCB]/.test(text)) {
         let pattern = [text.substring(0, 3)];
         text = text.substring(3, text.length);
@@ -473,19 +473,20 @@ function parseString(text, origin_text = false) {
             }
         }
     }
-
+    
     if (/\/c/.test(text) && origin_text != false) {
         let ori = [...origin_text
-            .matchAll(/([^\d\w\u2600-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]|[_・ー゛゜]|(\w)\2){3,}(?![\ud800-\udfff])/g)];
+            .matchAll(/([^\d\w\u2800-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]|[_・ー゛゜]|(\w)\2){3,}/g)];
         let replacement = text.match(/\/c/g);
 
         if (replacement != null) {
             for (let i = 0; i < replacement.length; i++) {
                 if (i > ori.length -1) break;
-                let last_code = ori[i][0].charCodeAt(ori[i][0].length - 1);
+
+                let last_one = ori[i][0].length - 1;
+                let last_code = ori[i][0].charCodeAt(last_one);
                 if (last_code > 0xd800 && last_code < 0xdfff) {
-                    let end = ori[i].index + ori[i][0].length;
-                    ori[i][0] = ori[i][0] + origin_text.substring(end, end + 1);
+                    ori[i][0] = ori[i][0].substring(0, last_one);
                 }
                 text = text.replace(/\/c/, ori[i][0]);
             }
@@ -512,7 +513,7 @@ function parseString(text, origin_text = false) {
         let code = "";
         let part = "";
         for (let emoji of capture) {
-            code = emoji[0].codePointAt(0).toString(16);
+            code = grabTheRightIcon(emoji[0]);
             part = text.substring(offset, emoji.index);
             string_html = (part.length > 0) ? crtString(part) : "";
             emoji_html =
@@ -535,6 +536,30 @@ function parseString(text, origin_text = false) {
     function crtString(text_part) {
         return `<span style="overflow-wrap: break-word;">${text_part}</span>`;
     }
+}
+
+function grabTheRightIcon(rawText) {
+    const U200D = String.fromCharCode(8205);
+    return toCodePoint(rawText.indexOf(U200D) < 0 ? rawText.replace(/\uFE0F/g, "") : rawText)
+}
+
+function toCodePoint(unicodeSurrogates, sep) {
+    var r = [],
+        c = 0,
+        p = 0,
+        i = 0;
+    while (i < unicodeSurrogates.length) {
+        c = unicodeSurrogates.charCodeAt(i++);
+        if (p) {
+            r.push((65536 + (p - 55296 << 10) + (c - 56320)).toString(16));
+            p = 0
+        } else if (55296 <= c && c <= 56319) {
+            p = c
+        } else {
+            r.push(c.toString(16))
+        }
+    }
+    return r.join(sep || "-")
 }
 
 function textAlter(patterns, text) {
