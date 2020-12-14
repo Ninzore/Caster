@@ -28,7 +28,7 @@ const defaultTemplate = {
         background : "",
         font_family : "Source-han-sans",
         text_decoration : "",
-        logo_in_reply : "翻译"
+        logo_in_reply : " "
     },
     extre : {},
     cover_origin : false,
@@ -55,6 +55,10 @@ function checkConnection() {
  */
 async function cook(context, twitter_url, trans_args={}) {
     try {
+        if (/[^\w\/\.:]/.test(twitter_url)) {
+            replyFunc(context, `${twitter_url}\n这个链接错误了`);
+            return;
+        }
         replyFunc(context, "收到，如果2分钟后还没有图可能是瘫痪了");
         let tweet = await getTweet(twitter_url);
         if (!tweet) {
@@ -62,7 +66,7 @@ async function cook(context, twitter_url, trans_args={}) {
         }
 
         let browser = await puppeteer.launch({
-            args : ['--no-sandbox', '--disable-dev-shm-usage']
+            args : ['--no-sandbox', '--disable-dev-shm-usage'], headless: true
         });
         let page = await browser.newPage();
         await page.setExtraHTTPHeaders({
@@ -106,11 +110,11 @@ async function cook(context, twitter_url, trans_args={}) {
 
             await page.evaluate((html_ready, trans_args, tweet) => {
                 let banner = document.getElementsByTagName('header')[0];
-                banner.parentNode.removeChild(banner);
+                if (banner && banner.parentNode) banner.parentNode.removeChild(banner);
                 let header = document.querySelector('main').firstChild.firstChild.firstChild.firstChild.firstChild.firstChild;
-                header.parentNode.removeChild(header);
+                if (header && header.parentNode) header.parentNode.removeChild(header);
                 let footer = document.getElementsByClassName('css-1dbjc4n r-aqfbo4 r-1p0dtai r-1d2f490 r-12vffkv r-1xcajam r-zchlnj')[0];
-                footer.parentNode.removeChild(footer);
+                if (footer && footer.parentNode) footer.parentNode.removeChild(footer);
 
                 let articles = document.querySelectorAll('article');
                 let article = articles[0].querySelector('[role=group]').parentElement;
@@ -177,7 +181,7 @@ async function cook(context, twitter_url, trans_args={}) {
 
                 if (html_ready.reply_html != undefined) {
                     for (let i = 0; i < html_ready.reply_html.length; i++) {
-                        if (i+1 >= articles.length) break;
+                        if (i + 1 >= articles.length) break;
                         else {
                             article = articles[i+1].querySelector('[role=group]').parentElement;
                             insert(article, html_ready.reply_html[i], 
@@ -215,17 +219,25 @@ async function cook(context, twitter_url, trans_args={}) {
         else {
             await page.evaluate(() => {
                 let banner = document.getElementsByTagName('header')[0];
-                banner.parentNode.removeChild(banner);
+                if (banner && banner.parentNode) banner.parentNode.removeChild(banner);
                 let header = document.querySelector('main').firstChild.firstChild.firstChild.firstChild.firstChild.firstChild;
-                header.parentNode.removeChild(header);
+                if (header && header.parentNode) header.parentNode.removeChild(header);
                 let footer = document.getElementsByClassName('css-1dbjc4n r-aqfbo4 r-1p0dtai r-1d2f490 r-12vffkv r-1xcajam r-zchlnj')[0];
-                footer.parentNode.removeChild(footer);
+                if (footer && footer.parentNode) footer.parentNode.removeChild(footer);
                 document.querySelector("#react-root").scrollIntoView(true);
             });
         }
         
         await page.waitFor(2000);
-        let tweet_box = await page.$('article .css-1dbjc4n .r-vpgt9t').then((tweet_article) => {return tweet_article.boundingBox()});
+        let tweet_box = await page.$('article .css-1dbjc4n .r-vpgt9t').then((tweet_article) => {
+            if (tweet_article == null) return {
+                height : 600,
+                width : 600,
+                x : 15,
+                y : 0
+            }
+            return tweet_article.boundingBox();
+        });
     
         await page.setViewport({
             width: 800,
@@ -374,7 +386,10 @@ function getTweet(twitter_url) {
             "tweet_mode" : "extended",
             "trim_user" : "true"
         }
-    }).then(res => {return res.data[0];}).catch(err => console.error(err.response.status, err.response.statusText));
+    }).then(res => {return res.data[0];}).catch(err => {
+        console.error(err.response.status, err.response.statusText);
+        return false;
+    });
 }
 
 async function setupHTML(trans_args, origin_text = "") {
@@ -475,20 +490,20 @@ function parseString(text, origin_text = false) {
     }
     
     if (/\/c/.test(text) && origin_text != false) {
-        let ori = [...origin_text
-            .matchAll(/([^\d\w\u2800-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]|[_・ー゛゜]|(\w)\2){3,}/g)];
+        let ori = origin_text
+            .match(/([^\w\n\u23e9-\u23ec\u23f0\u23f3\u267e\u26ce\u2705\u2728\u274c\u274e\u2753-\u2755\u2795-\u2797\u27b0\u27bf\u2800-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]|[_・ー゛゜]){3,}/g);
         let replacement = text.match(/\/c/g);
 
         if (replacement != null) {
             for (let i = 0; i < replacement.length; i++) {
                 if (i > ori.length -1) break;
 
-                let last_one = ori[i][0].length - 1;
-                let last_code = ori[i][0].charCodeAt(last_one);
+                let last_one = ori[i].length - 1;
+                let last_code = ori[i].charCodeAt(last_one);
                 if (last_code > 0xd800 && last_code < 0xdfff) {
-                    ori[i][0] = ori[i][0].substring(0, last_one);
+                    ori[i] = ori[i].substring(0, last_one);
                 }
-                text = text.replace(/\/c/, ori[i][0]);
+                text = text.replace(/\/c/, ori[i]);
             }
         }
     }
@@ -496,18 +511,17 @@ function parseString(text, origin_text = false) {
     text = text.replace(/((#|@)\S+?)(?=[】\])\s\n])/g,'<span style="color:#1DA1F2;">$1</span>')
         .replace(/(([--:\w?@%&+~#=]*\.[a-z]{2,4}\/{0,2})((?:[?&](?:\w+)=(?:\w+))+|[--:\w?@%&+~#=]+)?)/g,'<span style="color:#1DA1F2;">$1</span>');
 
-    if (/[\s\/](.{1,5})[x×*](\d{1,2})/.test(text)) {
+    if (/[\s\/](\W{1,5})[x×*](\d{1,2})/.test(text)) {
         let repeat = [...text.matchAll(/[\s\/](.{1,5})[x×*](\d{1,2})/g)];
         for (let rpt of repeat) {
             text = text.replace(rpt[0], new Array(parseInt(rpt[2])+1).join(rpt[1]));
         }
     }
-    
+
     let capture = [...text.matchAll(TWEMOJI_REG)];
     let ready_html = "";
     let string_html = "";
     let emoji_html = "";
-
     if (capture[0] != undefined) {
         let offset = 0;
         let code = "";

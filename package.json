@@ -1,6 +1,6 @@
 {
   "name": "bbq",
-  "version": "2.6.8",
+  "version": "2.6.9",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
