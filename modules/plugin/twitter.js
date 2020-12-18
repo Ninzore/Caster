@@ -808,4 +808,4 @@ function twitterAggr(context) {
 setAgent();
 firstConnect();
 
-module.exports = {twitterAggr, twitterReply, checkTwiTimeline, clearSubs};
+module.exports = {twitterAggr, twitterReply, checkTwiTimeline, clearSubs, httpHeader};
