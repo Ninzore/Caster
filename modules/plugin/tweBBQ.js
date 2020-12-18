@@ -2,6 +2,7 @@ const puppeteer = require('puppeteer');
 const mongodb = require('mongodb').MongoClient;
 const axios = require('axios');
 const marshmallow = require("./marshmallow");
+const twitter = require("./twitter");
 
 const DB_PORT = 27017;
 const DB_PATH = "mongodb://127.0.0.1:" + DB_PORT;
@@ -28,7 +29,7 @@ const defaultTemplate = {
         background : "",
         font_family : "source-han-serif-sc",
         text_decoration : "",
-        logo_in_reply : " "
+        logo_in_reply : "--------------"
     },
     extre : {},
     cover_origin : false,
@@ -44,7 +45,15 @@ function cookTweReply(replyMsg) {
 
 /** 检查网络情况，如果连不上Twitter那后面都不用做了*/
 function checkConnection() {
-    return axios.get("https://twitter.com").then(res => {connection = (res.status == 200) ? true : false}).catch(err => connection = false);
+    return axios.get("https://twitter.com", {
+        headers : {
+            "User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36"
+        }
+    }).then(res => {connection = (res.status == 200) ? true : false})
+    .catch(err => {
+        console.error("Twitter checkConnection error with", err.response.status, err.response.statusText);
+        return false;
+    });
 }
 
 /**
@@ -55,18 +64,24 @@ function checkConnection() {
  */
 async function cook(context, twitter_url, trans_args={}) {
     try {
+        let tweet_id = /status\/(\d+)/.exec(twitter_url)[1];
         if (/[^\w\/\.:]/.test(twitter_url)) {
             replyFunc(context, `${twitter_url}\n这个链接错误了`);
             return;
         }
         replyFunc(context, "收到，如果2分钟后还没有图可能是瘫痪了");
-        let tweet = await getTweet(/status\/(\d+)/.exec(twitter_url)[1]);
-        if (!tweet) {
+        let conversation = await rebuildConversation(tweet_id);
+        if (!conversation) {
             throw 1;
         }
 
+        let html_ready = {};
+        if (trans_args && Object.keys(trans_args).length > 0) {
+            html_ready = await fillHtml(trans_args, conversation);
+        }
+
         let browser = await puppeteer.launch({
-            args : ['--no-sandbox', '--disable-dev-shm-usage'], headless: true
+            args : ['--no-sandbox', '--disable-dev-shm-usage']
         });
         let page = await browser.newPage();
         await page.setExtraHTTPHeaders({
@@ -79,36 +94,7 @@ async function cook(context, twitter_url, trans_args={}) {
         await page.goto(twitter_url, {waitUntil : "networkidle0"});
 
         if (trans_args && Object.keys(trans_args).length > 0) {
-            if ("urls" in tweet.entities && tweet.entities.urls.length > 0) {
-                for (let i = 0; i <  tweet.entities.urls.length; i++) {
-                    tweet.full_text = tweet.full_text.replace(tweet.entities.urls[i].url, tweet.entities.urls[i].expanded_url);
-                }
-            }
-            if ("extra" in trans_args && "replace" in trans_args.extra && trans_args.extra.replace) {
-                tweet.full_text = textAlter(trans_args.extra.replace, tweet.full_text);
-            }
-            let html_ready = await setupHTML(trans_args, tweet.full_text);
-            if (trans_args.cover_origin != undefined && trans_args.cover_origin_in_reply == undefined) {
-                trans_args.cover_origin_in_reply = trans_args.cover_origin;
-            }
-            if (trans_args.no_group_info != undefined && trans_args.no_group_info_in_reply == undefined) {
-                trans_args.no_group_info_in_reply = trans_args.no_group_info;
-            }
-            if (trans_args.article.retweet != undefined) {
-                trans_args.article.retweet = `<div class="css-901oao">${decoration(trans_args.article.retweet, trans_args.article)}</div>`;
-            }
-            if (trans_args.article.image != undefined && trans_args.article.image) {
-                trans_args.article.image = await axios.get(trans_args.article.image, {responseType:'arraybuffer'})
-                    .then(res => {return Buffer.from(res.data, 'binary').toString('base64')}).catch(err => {throw "获取图片错误"});
-            }
-            if (trans_args.article.marshmallow != undefined && trans_args.article.marshmallow) {
-                trans_args.article.image = await marshmallow.toast({}, trans_args.article.marshmallow, false);
-            }
-
-            html_ready.logo_in_reply = 
-                `<div style="margin: 1px 0px 2px 1px; display: inline-block;">${decoration(defaultTemplate.group.logo_in_reply, defaultTemplate.group)}</div>`;
-
-            await page.evaluate((html_ready, trans_args, tweet) => {
+            await page.evaluate((html_ready, trans_args, conversation) => {
                 let banner = document.getElementsByTagName('header')[0];
                 if (banner && banner.parentNode) banner.parentNode.removeChild(banner);
                 let header = document.querySelector('main').firstChild.firstChild.firstChild.firstChild.firstChild.firstChild;
@@ -123,10 +109,8 @@ async function cook(context, twitter_url, trans_args={}) {
                         : html_ready.trans_group_html
                     , trans_args.cover_origin);
 
-                if ("quoted_status" in tweet && "possibly_sensitive" in tweet.quoted_status && tweet.quoted_status.possibly_sensitive == true) {
-                    if (articles[0].querySelector('[href="/settings/safety"]') != null) {
-                        articles[0].querySelector('[href="/settings/safety"]').parentElement.parentElement.parentElement.children[1].firstChild.click();
-                    }
+                if (articles[0].querySelector('[href="/settings/safety"]') != null) {
+                    articles[0].querySelector('[href="/settings/safety"]').parentElement.parentElement.parentElement.children[1].firstChild.click();
                 }
                 
                 if (trans_args.article.image != undefined) {
@@ -148,23 +132,7 @@ async function cook(context, twitter_url, trans_args={}) {
                 if (video) {
                     let poster = false;
                     if (video.querySelector('[poster]') != null) poster = video.querySelector('[poster]').poster;
-                    else {
-                        let media = false;
-                        if ("extended_entities" in tweet && "media" in tweet.extended_entities) {
-                            media = tweet.extended_entities.media
-                        } else if ("quoted_status" in tweet && "media" in tweet.quoted_status.extended_entities) {
-                            media = tweet.quoted_status.extended_entities.media;
-                        }
-
-                        if (media) {
-                            for (let i = 0; i < media.length; i++) {
-                                if (media[i].type == "animated_gif" || media[i].type == "video") {
-                                    poster = media[i].media_url_https;
-                                    break;
-                                }
-                            }
-                        }
-                    }
+                    else poster = conversation.poster;
                     if (poster) video.firstChild.lastChild.innerHTML = `<img style="max-height:100%; max-width:100%" src="${poster}">`;
                 }
 
@@ -214,18 +182,26 @@ async function cook(context, twitter_url, trans_args={}) {
                     else article.appendChild(trans_place);
                 }
                 document.querySelector("#react-root").scrollIntoView(true);
-            }, html_ready, trans_args, tweet);
+            }, html_ready, trans_args, conversation);
         }
         else {
-            await page.evaluate(() => {
+            await page.evaluate((conversation) => {
                 let banner = document.getElementsByTagName('header')[0];
                 if (banner && banner.parentNode) banner.parentNode.removeChild(banner);
                 let header = document.querySelector('main').firstChild.firstChild.firstChild.firstChild.firstChild.firstChild;
                 if (header && header.parentNode) header.parentNode.removeChild(header);
                 let footer = document.getElementsByClassName('css-1dbjc4n r-aqfbo4 r-1p0dtai r-1d2f490 r-12vffkv r-1xcajam r-zchlnj')[0];
                 if (footer && footer.parentNode) footer.parentNode.removeChild(footer);
+
+                let video = document.querySelector('[data-testid="videoPlayer"]');
+                if (video) {
+                    let poster = false;
+                    if (video.querySelector('[poster]') != null) poster = video.querySelector('[poster]').poster;
+                    else poster = conversation.poster;
+                    if (poster) video.firstChild.lastChild.innerHTML = `<img style="max-height:100%; max-width:100%" src="${poster}">`;
+                }
                 document.querySelector("#react-root").scrollIntoView(true);
-            });
+            }, conversation);
         }
         
         await page.waitFor(2000);
@@ -373,6 +349,30 @@ async function serialTweet(context, twitter_url, trans_args={}) {
     await browser.close();
 }
 
+async function fillHtml(trans_args, conversation) {
+    let html_ready = await setupHTML(trans_args, conversation);
+    if (trans_args.cover_origin != undefined && trans_args.cover_origin_in_reply == undefined) {
+        trans_args.cover_origin_in_reply = trans_args.cover_origin;
+    }
+    if (trans_args.no_group_info != undefined && trans_args.no_group_info_in_reply == undefined) {
+        trans_args.no_group_info_in_reply = trans_args.no_group_info;
+    }
+    if (trans_args.article.retweet != undefined) {
+        trans_args.article.retweet = `<div class="css-901oao">${decoration(trans_args.article.retweet, trans_args.article)}</div>`;
+    }
+    if (trans_args.article.image != undefined && trans_args.article.image) {
+        trans_args.article.image = await axios.get(trans_args.article.image, {responseType:'arraybuffer'})
+            .then(res => {return Buffer.from(res.data, 'binary').toString('base64')}).catch(err => {throw "获取图片错误"});
+    }
+    if (trans_args.article.marshmallow != undefined && trans_args.article.marshmallow) {
+        trans_args.article.image = await marshmallow.toast({}, trans_args.article.marshmallow, false);
+    }
+
+    html_ready.logo_in_reply = 
+        `<div style="margin: 1px 0px 2px 1px; display: inline-block;">${decoration(defaultTemplate.group.logo_in_reply, defaultTemplate.group)}</div>`;
+    return html_ready;
+}
+
 function getTweet(tweet_id) {
     return axios({
         method:'GET',
@@ -392,12 +392,112 @@ function getTweet(tweet_id) {
     });
 }
 
-async function setupHTML(trans_args, origin_text = "") {
+function getConversation(tweet_id) {
+    return axios({
+        method : "GET",
+        url : `https://twitter.com/i/api/2/timeline/conversation/${tweet_id}.json`,
+        headers : twitter.httpHeader(),
+        params : {
+            "simple_quoted_tweet": true,
+            "tweet_mode" : "extended",
+            "trim_user": true,
+        }
+    }).then(res => {return res.data
+    }).catch(err => {
+        console.error("getConversation error\n" + err.response.data);
+        return false;
+    })
+}
+
+async function rebuildConversation(tweet_id) {
+    let conversation = {
+        origin : "",
+        quote : "",
+        reply : [],
+        poster : ""
+    };
+
+    let tweet = await getTweet(tweet_id);
+    conversation.origin = tweetTextPrepare(tweet);
+    if (tweet.in_reply_to_status_id_str == undefined && tweet.quoted_status_id_str == undefined) {
+        mediaPoster(conversation);
+        return conversation;
+    }
+
+    let timeline = (await getConversation(tweet_id)).globalObjects.tweets;
+    if (!timeline) return conversation;
+    
+    let begin = true;
+    while(1) {
+        if (!begin) conversation.reply.push(tweetTextPrepare(tweet));
+        else begin = false;
+        mediaPoster(conversation);
+        if ("is_quote_status" in tweet && tweet.is_quote_status == true && tweet.quoted_status_id_str != undefined) {
+            conversation.quote = tweetTextPrepare(timeline[tweet.quoted_status_id_str]);
+        }
+        if ("in_reply_to_status_id_str" in tweet && tweet.in_reply_to_status_id_str != null) {
+            tweet = timeline[tweet.in_reply_to_status_id_str];
+        }
+        else break;
+    }
+    
+    if (conversation.reply.length > 0) {
+        let temp = conversation.origin;
+        conversation.origin = conversation.reply[conversation.reply.length - 1];
+        conversation.reply.pop();
+        conversation.reply.reverse();
+        conversation.reply.push(temp);
+    }
+    return conversation;
+
+    function mediaPoster(conversation) {
+        if ("extended_entities" in tweet && "media" in tweet.extended_entities) {
+            let media = tweet.extended_entities.media;
+            for (let m of media) {
+                if (m.type == "animated_gif" || m.type == "video") {
+                    conversation.poster = m.media_url_https;
+                }
+            }
+        }
+        return conversation;
+    }
+}
+
+
+function tweetTextPrepare(tweet) {
+    let text = tweet.full_text;
+    if ("urls" in tweet.entities && tweet.entities.urls.length > 0) {
+        for (let i = 0; i < tweet.entities.urls.length; i++) {
+            text = tweet.full_text.replace(tweet.entities.urls[i].url, tweet.entities.urls[i].expanded_url);
+        }
+    }
+    return text;
+}
+
+function convProcess(trans_args, conversation) {
+    if ("extra" in trans_args && trans_args.extra.replace) {
+        for (let key in conversation) {
+            let value = conversation[key];
+            if (value.length == 0) continue;
+            if (Array.isArray(value)) {
+                for (let i = 0; i < value.length; i++) {
+                    conversation[key][i] = textAlter(trans_args.extra.replace, value[i]);
+                }
+            }
+            else conversation[key] = textAlter(trans_args.extra.replace, value);
+        }
+    }
+    return conversation;
+}
+
+async function setupHTML(trans_args, conversation) {
     trans_args = fillTemplate(trans_args);
+    conversation = convProcess(trans_args, conversation);
+
     let html_ready = {}
     if (trans_args.article.origin != undefined) {
         html_ready.trans_article_html = trans_args.article_html == undefined ? 
-            decoration(trans_args.article.origin, trans_args.article, origin_text ? origin_text : false) : trans_args.article_html;
+            decoration(trans_args.article.origin, trans_args.article, conversation.origin || false) : trans_args.article_html;
         // html_ready.trans_article_html = `<div class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0">${html_ready.trans_article_html}</div>`
         html_ready.trans_article_html = `<div style="display: block; overflow-wrap: break-word;">${html_ready.trans_article_html}</div>`
     }
@@ -405,18 +505,17 @@ async function setupHTML(trans_args, origin_text = "") {
     if ("serialTrans" in trans_args.article && trans_args.article.serialTrans.length > 0) {
         html_ready.serialTrans = [];
         for (let trans of trans_args.article.serialTrans) {
-            html_ready.serialTrans.push(['<div style="display: block; white-space: pre-wrap; overflow-wrap: break-word;">',
-                `${decoration(trans, trans_args.article)}</div>`].join(""));
+            html_ready.serialTrans.push(['<div style="display: block; white-space: pre-wrap; overflow-wrap: break-word;">',`${decoration(trans, trans_args.article)}</div>`].join(""));
         }
     }
     if (trans_args.article.quote != undefined) {
         html_ready.quote_html = 
-            `<div style="display: block; white-space: pre-wrap; overflow-wrap: break-word;">${decoration(trans_args.article.quote, trans_args.article)}</div>`;
+            `<div style="display: block; white-space: pre-wrap; overflow-wrap: break-word;">${decoration(trans_args.article.quote, trans_args.article, conversation.quote || false)}</div>`;
     }
     if (trans_args.article.reply != undefined) {
         html_ready.reply_html = [];
-        for (let reply of trans_args.article.reply) html_ready.reply_html.push(
-            `<div style="display: block; white-space: pre-wrap; overflow-wrap: break-word;">${decoration(reply, trans_args.article)}</div>`);
+        for (let i in trans_args.article.reply) html_ready.reply_html.push(
+            `<div style="display: block; white-space: pre-wrap; overflow-wrap: break-word;">${decoration(trans_args.article.reply[i], trans_args.article, conversation.reply[i] || false)}</div>`);
     }
     if (!trans_args.no_group_info) {
         if (/^http/.test(trans_args.group.group_info)) {
@@ -427,9 +526,12 @@ async function setupHTML(trans_args, origin_text = "") {
         }
         else {
             html_ready.trans_group_html = (trans_args.group_html == undefined) ? 
-                ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0" style="display: block; margin: 0px 0px 3px 1px;">', 
+                ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0"',
+                ' style="display: block; margin: 0px 0px 3px 1px;">', 
                 decoration(trans_args.group.group_info, trans_args.group), '</div>'].join("")
-                : ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0;" style="margin: 0px 0px 4px 1px; display: block;">', trans_args.group_html, '</div>'].join("");
+                : ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0;" ',
+                    'style="margin: 0px 0px 4px 1px; display: block;">',
+                     trans_args.group_html, '</div>'].join("");
         }
     }
     else html_ready.trans_group_html = "";
@@ -438,7 +540,9 @@ async function setupHTML(trans_args, origin_text = "") {
 
 function decoration(text, template, origin_text = "") {
     let css = ('css' in template && template.css.length > 1) ? template.css
-        : template ? `font-family: ${template.font_family}; font-size: ${template.size}; text-decoration: ${template.text_decoration}; color: ${template.color}; background: ${template.background};` : "all: inherit;";
+        : template ? `font-family: ${template.font_family}; font-size: ${template.size}; 
+        text-decoration: ${template.text_decoration}; color: ${template.color}; background: ${template.background};` 
+        : "all: inherit;";
 
     let ready_html = 
         `<div class="css-901oao css-1dbjc4n" style="display: block; white-space: pre-wrap; overflow-wrap: break-word; ${css}">${parseString(text, origin_text)}</div>`;
@@ -493,7 +597,7 @@ function parseString(text, origin_text = false) {
         let ori = origin_text
             .match(/([^\w\n０-９\u23e9-\u23ec\u23f0\u23f3\u267e\u26ce\u2705\u2728\u274c\u274e\u2753-\u2755\u2795-\u2797\u27b0\u27bf\u2800-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]){3,}|([_・ー゛゜])\2{3,}/g);
         let replacement = text.match(/\/c/g);
- 
+
         if (replacement != null) {
             for (let i = 0; i < replacement.length; i++) {
                 if (i > ori.length -1) break;
@@ -584,7 +688,7 @@ function textAlter(patterns, text) {
 
         for (let rpt of replacement) {
             let replaced = rpt.replace(new RegExp(`${alt[0]}`, "g"), alt[1]);
-            text = text.replace(new RegExp(`${rpt}`, "g"), replaced);
+            text = text.replace(rpt, replaced);
         }
     }
     return text;
