@@ -230,7 +230,7 @@ async function cook(context, twitter_url, trans_args={}) {
         await browser.close();
     } catch(err) {
         if (err == 1) {
-            replyFunc(context, `没有${twitter_url}这条Twitter\n可能是被删了`, true);
+            replyFunc(context, `没有${twitter_url} 这条Twitter\n可能是被删了`, true);
         }
         else {
             console.error(err);
@@ -418,9 +418,11 @@ async function rebuildConversation(tweet_id) {
     };
 
     let tweet = await getTweet(tweet_id);
+    if (tweet == undefined || !tweet) return false;
+
     conversation.origin = tweetTextPrepare(tweet);
     if (tweet.in_reply_to_status_id_str == undefined && tweet.quoted_status_id_str == undefined) {
-        mediaPoster(conversation);
+        mediaPoster(conversation, tweet);
         return conversation;
     }
 
@@ -431,9 +433,10 @@ async function rebuildConversation(tweet_id) {
     while(1) {
         if (!begin) conversation.reply.push(tweetTextPrepare(tweet));
         else begin = false;
-        mediaPoster(conversation);
+        mediaPoster(conversation, tweet);
         if ("is_quote_status" in tweet && tweet.is_quote_status == true && tweet.quoted_status_id_str != undefined) {
             conversation.quote = tweetTextPrepare(timeline[tweet.quoted_status_id_str]);
+            mediaPoster(conversation, timeline[tweet.quoted_status_id_str]);
         }
         if ("in_reply_to_status_id_str" in tweet && tweet.in_reply_to_status_id_str != null) {
             tweet = timeline[tweet.in_reply_to_status_id_str];
@@ -450,7 +453,7 @@ async function rebuildConversation(tweet_id) {
     }
     return conversation;
 
-    function mediaPoster(conversation) {
+    function mediaPoster(conversation, tweet) {
         if ("extended_entities" in tweet && "media" in tweet.extended_entities) {
             let media = tweet.extended_entities.media;
             for (let m of media) {
@@ -551,10 +554,12 @@ function decoration(text, template, origin_text = "") {
 }
 
 function parseString(text, origin_text = false) {
+    text = text.replace(/&#91;/g, "[").replace(/&#93;/g, "]").replace(/&amp;/g, "&");
+
     if (/\/u/.test(text) && origin_text != false) {
         let ori = [...origin_text.matchAll(/([--:\w?@%&+~#=]*\.[a-z]{2,4}\/{0,2})((?:[?&](?:\w+)=(?:\w+))+|[--:\w?@%&+~#=]+)?/g)];
         let replacement = text.match(/\/u/g);
-        if (replacement != null) {
+        if (ori != null && replacement != null) {
             for (let i in replacement) {
                 if (i > ori.length -1) break;
                 ori[i][0] = ori[i][0].replace(/https?:\/\//, "");
@@ -567,7 +572,7 @@ function parseString(text, origin_text = false) {
         let ori = origin_text.match(TWEMOJI_GROUP_REG);
         let replacement = text.match(/\/e/g);
 
-        if (replacement != null) {
+        if (ori != null && replacement != null) {
             for (let i = 0; i < replacement.length; i++) {
                 if (i > ori.length -1) break;
                 text = text.replace(/\/e/, ori[i]);
@@ -585,7 +590,7 @@ function parseString(text, origin_text = false) {
         let ori = [...origin_text.matchAll(/([\u4E00-\u9FCB])\1{3,}/g)];
         let replacement = [...text.matchAll(/\/z/g)];
 
-        if (replacement != null) {
+        if (ori != null && replacement != null) {
             for (let i = 0; i < replacement.length; i++) {
                 if (i > ori.length -1) break;
                 text = text.replace(/\/z/, ori[i][0]);
@@ -595,10 +600,10 @@ function parseString(text, origin_text = false) {
     
     if (/\/c/.test(text) && origin_text != false) {
         let ori = origin_text
-            .match(/([^\w\n０-９\u23e9-\u23ec\u23f0\u23f3\u267e\u26ce\u2705\u2728\u274c\u274e\u2753-\u2755\u2795-\u2797\u27b0\u27bf\u2800-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]){3,}|([_・ー゛゜])\2{3,}/g);
+            .match(/([^\w\n０-９\u23e9-\u23ec\u23f0\u23f3\u267e\u26ce\u2705\u2728\u274c\u274e\u2753-\u2755\u2795-\u2797\u27b0\u27bf\u2800-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]|[3_]){4,}|([_・ー゛゜])\2{3,}/g);
         let replacement = text.match(/\/c/g);
 
-        if (replacement != null) {
+        if (ori != null && replacement != null) {
             for (let i = 0; i < replacement.length; i++) {
                 if (i > ori.length -1) break;
 
@@ -674,10 +679,10 @@ function toCodePoint(unicodeSurrogates, sep) {
         } else if (55296 <= c && c <= 56319) {
             p = c
         } else {
-            r.push(c.toString(16))
+            r.push(c.toString(16));
         }
     }
-    return r.join(sep || "-")
+    return r.join(sep || "-");
 }
 
 function textAlter(patterns, text) {
