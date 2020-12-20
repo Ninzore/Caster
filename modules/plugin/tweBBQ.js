@@ -70,7 +70,7 @@ async function cook(context, twitter_url, trans_args={}) {
             return;
         }
         replyFunc(context, "收到，如果2分钟后还没有图可能是瘫痪了");
-        let conversation = await rebuildConversation(tweet_id);
+        let conversation = await rebuildConversation(tweet_id, Object.keys(trans_args).length);
         if (!conversation) {
             throw 1;
         }
@@ -81,7 +81,7 @@ async function cook(context, twitter_url, trans_args={}) {
         }
 
         let browser = await puppeteer.launch({
-            args : ['--no-sandbox', '--disable-dev-shm-usage']
+            args : ['--no-sandbox', '--disable-dev-shm-usage'], headless: true
         });
         let page = await browser.newPage();
         await page.setExtraHTTPHeaders({
@@ -409,7 +409,7 @@ function getConversation(tweet_id) {
     })
 }
 
-async function rebuildConversation(tweet_id) {
+async function rebuildConversation(tweet_id, trans_args_len) {
     let conversation = {
         origin : "",
         quote : "",
@@ -419,6 +419,7 @@ async function rebuildConversation(tweet_id) {
 
     let tweet = await getTweet(tweet_id);
     if (tweet == undefined || !tweet) return false;
+    if (trans_args_len == 0) return true;
 
     conversation.origin = tweetTextPrepare(tweet);
     if (tweet.in_reply_to_status_id_str == undefined && tweet.quoted_status_id_str == undefined) {
@@ -600,7 +601,7 @@ function parseString(text, origin_text = false) {
     
     if (/\/c/.test(text) && origin_text != false) {
         let ori = origin_text
-            .match(/([^\w\n０-９\u23e9-\u23ec\u23f0\u23f3\u267e\u26ce\u2705\u2728\u274c\u274e\u2753-\u2755\u2795-\u2797\u27b0\u27bf\u2800-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]|[3_]){4,}|([_・ー゛゜])\2{3,}/g);
+            .match(/([^\w\n０-９\u23e9-\u23ec\u23f0\u23f3\u267e\u26ce\u2705\u2728\u274c\u274e\u2753-\u2755\u2795-\u2797\u27b0\u27bf\u2800-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]|[03_・ー゛゜灬]){4,}|([_・ー゛゜])\2{3,}/g);
         let replacement = text.match(/\/c/g);
 
         if (ori != null && replacement != null) {
