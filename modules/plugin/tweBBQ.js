@@ -514,7 +514,7 @@ async function setupHTML(trans_args, conversation) {
     }
     if (trans_args.article.quote != undefined) {
         html_ready.quote_html = 
-            `<div style="display: block; white-space: pre-wrap; overflow-wrap: break-word;">${decoration(trans_args.article.quote, trans_args.article, conversation.quote || false)}</div>`;
+            `<div lang="zh" style="display: block; white-space: pre-wrap; overflow-wrap: break-word;">${decoration(trans_args.article.quote, trans_args.article, conversation.quote || false)}</div>`;
     }
     if (trans_args.article.reply != undefined) {
         html_ready.reply_html = [];
@@ -823,9 +823,8 @@ function findTemplate(username, group_id) {
     return mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
         let coll = mongo.db('bot').collection('twiBBQ');
         try {
-            let res = await coll.findOne({group_id : group_id});
-            if (res) return res.trans_args;
-            else res = await coll.findOne({username : username});
+            let res = await coll.findOne({group_id : group_id, username : username}) 
+                || await coll.findOne({group_id : group_id});
             return (res) ? res.trans_args : false;
         } catch(err) {console.error(err);
         } finally {mongo.close();}
