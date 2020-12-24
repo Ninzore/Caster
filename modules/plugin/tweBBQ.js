@@ -37,6 +37,36 @@ const defaultTemplate = {
     cover_origin_in_reply : false,
     no_group_info_in_reply : false
 }
+
+const BBQ_ARGS = {
+    "翻译" : "origin",
+    "连续翻译" : "serialTrans",
+    "回复" : "reply",
+    "颜色" : "color",
+    "大小" : "size",
+    "字体" : "font_family",
+    "装饰" : "text_decoration",
+    "css" : "css",
+    "替换" : "replace",
+    "插图" : "image",
+    "棉花糖" : "marshmallow",
+    "汉化组" : "group_info",
+    "汉化组大小" : "group_size",
+    "汉化组颜色" : "group_color",
+    "汉化组字体" : "group_font_family",
+    "汉化组装饰" : "group_text_decoration",
+    "汉化组css" : "group_css",
+    "背景" : "background",
+    "引用" : "quote",
+    "选项" : "choice",
+    "覆盖" : "cover_origin",
+    "无汉化组" : "no_group_info",
+    "回复中覆盖" : "cover_origin_in_reply",
+    "回复中无汉化组" : "no_group_info_in_reply",
+    "group_html" : "group_html",
+    "article_html" : "article_html",
+}
+
 let replyFunc = (context, msg, at = false) => {};
 
 function cookTweReply(replyMsg) {
@@ -701,76 +731,49 @@ function textAlter(patterns, text) {
 }
 
 function setTemplate(unparsed) {
+    const ARGS = Object.keys(BBQ_ARGS).join("|");
     let trans_args = {article : {}, group : {}, extra : {}};
-    let style_options = unparsed.split(/[+＋]/);
-    let option = "";
-    let style = "";
     let err = false;
-    let option_map = {
-        "翻译" : "origin",
-        "连续翻译" : "serialTrans",
-        "回复" : "reply",
-        "颜色" : "color",
-        "大小" : "size",
-        "字体" : "font_family",
-        "装饰" : "text_decoration",
-        "css" : "css",
-        "替换" : "replace",
-        "插图" : "image",
-        "棉花糖" : "marshmallow",
-        "汉化组" : "group_info",
-        "汉化组大小" : "group_size",
-        "汉化组颜色" : "group_color",
-        "汉化组字体" : "group_font_family",
-        "汉化组装饰" : "group_text_decoration",
-        "汉化组css" : "group_css",
-        "背景" : "background",
-        "引用" : "quote",
-        "选项" : "choice",
-        "覆盖" : "cover_origin",
-        "无汉化组" : "no_group_info",
-        "回复中覆盖" : "cover_origin_in_reply",
-        "回复中无汉化组" : "no_group_info_in_reply",
-        "group_html" : "group_html",
-        "article_html" : "article_html",
-        "error" : false
-    }
+    const STYLE_OPTIONS = unparsed.split(new RegExp(`(?<=${ARGS})[+＋]`, "i"));
+    const ARGS_REG = new RegExp(`(?<=${ARGS})[=＝]`, "i");
 
-    for (let i in style_options) {
-        option = style_options[i].split(/(?<!<.+(style))[=＝]/).filter((noEmpty) => {return noEmpty != undefined});
-        style = option_map[option[0].trim().replace(/<br>/g, "")] || option_map["error"];
+    for (let i in STYLE_OPTIONS) {
+        let option = STYLE_OPTIONS[i].split(ARGS_REG).filter((noEmpty) => {return noEmpty != undefined});
+        let style = BBQ_ARGS[option[0].trim().replace(/<br>/g, "")] || false;
+        let arg = option.slice(1).join("");
 
         if (!style) err = `没有${option[0]}这个选项`;
-        else if (style == "article_html" || style == "group_html") trans_args[style] = option[1].trim();
+        else if (/iframe/.test(arg)) err = "你想干什么？";
+        else if (style == "article_html" || style == "group_html") trans_args[style] = arg.trim();
         else {
             if (style == "origin" || style == "reply" || style == "group_info");
-            else if (option[1]) option[1].trim().replace(/<br>/g, "");
-
-            if (/^group_/.test(style) && !/\[CQ:image/.test(option[1])) trans_args.group[style.replace(/^group_(?!info)/, "")] = option[1];
+            else if (arg) arg.trim().replace(/<br>/g, "");
+            
+            if (/^group_/.test(style) && !/\[CQ:image/.test(arg)) trans_args.group[style.replace(/^group_(?!info)/, "")] = arg;
             else if (style == 'cover_origin') trans_args.cover_origin = true;
             else if (style == 'no_group_info') trans_args.no_group_info = true;
             else if (style == 'cover_origin_in_reply') trans_args.cover_origin_in_reply = true;
             else if (style == 'no_group_info_in_reply') trans_args.no_group_info_in_reply = true;
-            else if (style == 'group_info' && /\[CQ:image/.test(option[1])) trans_args.group.group_info = /(http.+?)\?/.exec(option.join(""))[1];
+            else if (style == 'group_info' && /\[CQ:image/.test(arg)) trans_args.group.group_info = /(http.+?)\?/.exec(option.join(""))[1];
             else if (style == 'choice') {
-                trans_args.article.choice = option[1].split(/[;；]/).filter((noEmpty) => {return noEmpty != undefined && noEmpty.length > 0});
+                trans_args.article.choice = arg.split(/[;；]/).filter((noEmpty) => {return noEmpty != undefined && noEmpty.length > 0});
             }
             else if (style == 'reply') {
-                if (!Array.isArray(trans_args.article.reply)) trans_args.article.reply = [option[1]];
-                else trans_args.article.reply.push(option[1]);
+                if (!Array.isArray(trans_args.article.reply)) trans_args.article.reply = [arg];
+                else trans_args.article.reply.push(arg);
             }
             else if (style == "serialTrans") {
-                trans_args.article.serialTrans = option[1].split(/[;；]/, 10);
+                trans_args.article.serialTrans = arg.split(/[;；]/, 10);
             }
-            else if (style == "image" && /\[CQ:image/.test(option[1])) {
+            else if (style == "image" && /\[CQ:image/.test(arg)) {
                 trans_args.article.image = /(http.+?)\?/.exec(option.join(""))[1];
             }
-            else if (style == "replace" && /.\/[\u4E00-\u9FCB]/.test(option[1])) {
-                trans_args.extra.replace = option[1].split(/[,，]/).filter((noEmpty) => {return noEmpty != undefined && noEmpty.length > 0});
+            else if (style == "replace" && /.\/[\u4E00-\u9FCB]/.test(arg)) {
+                trans_args.extra.replace = arg.split(/[,，]/).filter((noEmpty) => {return noEmpty != undefined && noEmpty.length > 0});
             }
             else {
-                if (/\[CQ:image/.test(option[1])) err = `在${option[0]}这个位置不能插图`;
-                trans_args.article[style] = option[1];
+                if (/\[CQ:image/.test(arg)) err = `在${option[0]}这个位置不能插图`;
+                trans_args.article[style] = arg;
             }
         }
     }
