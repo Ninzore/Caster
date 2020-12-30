@@ -39,6 +39,7 @@ const defaultTemplate = {
 }
 
 const BBQ_ARGS = {
+    "原推" : "origin",
     "翻译" : "origin",
     "连续翻译" : "serialTrans",
     "回复" : "reply",
@@ -107,11 +108,12 @@ async function cook(context, twitter_url, trans_args={}) {
 
         let html_ready = {};
         if (trans_args && Object.keys(trans_args).length > 0) {
+            trans_args = ensureStructure(trans_args, conversation);
             html_ready = await fillHtml(trans_args, conversation);
         }
 
         let browser = await puppeteer.launch({
-            args : ['--no-sandbox', '--disable-dev-shm-usage'], headless: true
+            args : ['--no-sandbox', '--disable-dev-shm-usage']
         });
         let page = await browser.newPage();
         await page.setExtraHTTPHeaders({
@@ -177,7 +179,7 @@ async function cook(context, twitter_url, trans_args={}) {
                     for (let i = 0; i < choice_list.length/2; i++) choice_list[2*i].innerText = trans_args.article.choice[i];
                 }
 
-                if (html_ready.reply_html != undefined) {
+                if (html_ready.reply_html != undefined && html_ready.reply_html.length > 0) {
                     for (let i = 0; i < html_ready.reply_html.length; i++) {
                         if (i + 1 >= articles.length) break;
                         else {
@@ -277,7 +279,7 @@ async function serialTweet(context, twitter_url, trans_args={}) {
         return;
     }
     let browser = await puppeteer.launch({
-        args : ["--no-sandbox", "--disable-dev-shm-usage"], ignoreDefaultArgs : ["--enable-automation"], headless: true
+        args : ["--no-sandbox", "--disable-dev-shm-usage"], ignoreDefaultArgs : ["--enable-automation"]
     });
     let page = await browser.newPage();
     await page.setBypassCSP(true);
@@ -379,8 +381,25 @@ async function serialTweet(context, twitter_url, trans_args={}) {
     await browser.close();
 }
 
+function ensureStructure(trans_args, conversation) {
+    if (conversation.quote && trans_args.article.reply && trans_args.article.reply.length > 0
+        && trans_args.article.reply.length === conversation.reply.length + 1) {
+            let a_reply = trans_args.article.reply;
+            trans_args.article.quote = a_reply[a_reply.length - 1];
+            trans_args.article.reply = a_reply.slice(0, a_reply.length - 1);
+    }
+    if ("reply" in trans_args.article && trans_args.article.reply.length > conversation.reply.length) {
+        throw "args中的回复数量比可用的多";
+    }
+    if ("reply" in trans_args.article && trans_args.article.reply.length < 1) {
+        trans_args.article.reply = undefined;
+    }
+    return trans_args;
+}
+
 async function fillHtml(trans_args, conversation) {
     let html_ready = await setupHTML(trans_args, conversation);
+    
     if (trans_args.cover_origin != undefined && trans_args.cover_origin_in_reply == undefined) {
         trans_args.cover_origin_in_reply = trans_args.cover_origin;
     }
@@ -400,6 +419,7 @@ async function fillHtml(trans_args, conversation) {
 
     html_ready.logo_in_reply = 
         `<div style="margin: 1px 0px 2px 1px; display: inline-block;">${decoration(defaultTemplate.group.logo_in_reply, defaultTemplate.group)}</div>`;
+
     return html_ready;
 }
 
@@ -734,50 +754,68 @@ function setTemplate(unparsed) {
     const ARGS = Object.keys(BBQ_ARGS).join("|");
     let trans_args = {article : {}, group : {}, extra : {}};
     let err = false;
-    const STYLE_OPTIONS = unparsed.split(new RegExp(`(?<=${ARGS})[+＋]`, "i"));
+    
+    const ARGS_SPT = new RegExp(`[+＋](?=${ARGS})`, "i");
     const ARGS_REG = new RegExp(`(?<=${ARGS})[=＝]`, "i");
+    const ARG_TEST = new RegExp(`[+＋](${ARGS})[=＝]`, "i");
 
-    for (let i in STYLE_OPTIONS) {
-        let option = STYLE_OPTIONS[i].split(ARGS_REG).filter((noEmpty) => {return noEmpty != undefined});
-        let style = BBQ_ARGS[option[0].trim().replace(/<br>/g, "")] || false;
-        let arg = option.slice(1).join("");
+    if (!ARG_TEST.test(unparsed)) {
+        const SENTENCES = unparsed.split(/<br>[+＋]/);
+        trans_args.article.origin = SENTENCES[0];
 
-        if (!style) err = `没有${option[0]}这个选项`;
-        else if (/iframe/.test(arg)) err = "你想干什么？";
-        else if (style == "article_html" || style == "group_html") trans_args[style] = arg.trim();
-        else {
-            if (style == "origin" || style == "reply" || style == "group_info");
-            else if (arg) arg.trim().replace(/<br>/g, "");
-            
-            if (/^group_/.test(style) && !/\[CQ:image/.test(arg)) trans_args.group[style.replace(/^group_(?!info)/, "")] = arg;
-            else if (style == 'cover_origin') trans_args.cover_origin = true;
-            else if (style == 'no_group_info') trans_args.no_group_info = true;
-            else if (style == 'cover_origin_in_reply') trans_args.cover_origin_in_reply = true;
-            else if (style == 'no_group_info_in_reply') trans_args.no_group_info_in_reply = true;
-            else if (style == 'group_info' && /\[CQ:image/.test(arg)) trans_args.group.group_info = /(http.+?)\?/.exec(option.join(""))[1];
-            else if (style == 'choice') {
-                trans_args.article.choice = arg.split(/[;；]/).filter((noEmpty) => {return noEmpty != undefined && noEmpty.length > 0});
+        if (SENTENCES.length > 1) {
+            for (let i = 1; i < SENTENCES.length; i++) {
+                if (!Array.isArray(trans_args.article.reply)) trans_args.article.reply = [];
+                if (/\[CQ:image/.test(SENTENCES[i])) trans_args.article.image = /(http.+?)\?/.exec(SENTENCES[i])[1];
+                else trans_args.article.reply.push(SENTENCES[i]);
             }
-            else if (style == 'reply') {
-                if (!Array.isArray(trans_args.article.reply)) trans_args.article.reply = [arg];
-                else trans_args.article.reply.push(arg);
-            }
-            else if (style == "serialTrans") {
-                trans_args.article.serialTrans = arg.split(/[;；]/, 10);
-            }
-            else if (style == "image" && /\[CQ:image/.test(arg)) {
-                trans_args.article.image = /(http.+?)\?/.exec(option.join(""))[1];
-            }
-            else if (style == "replace" && /.\/[\u4E00-\u9FCB]/.test(arg)) {
-                trans_args.extra.replace = arg.split(/[,，]/).filter((noEmpty) => {return noEmpty != undefined && noEmpty.length > 0});
-            }
+        }
+        else err = "出错惹，换个精确点的写法";
+    }
+    else {
+        const STYLE_OPTIONS = unparsed.split(ARGS_SPT);
+        for (let i in STYLE_OPTIONS) {
+            let option = STYLE_OPTIONS[i].split(ARGS_REG).filter((noEmpty) => {return noEmpty != undefined});
+            let style = BBQ_ARGS[option[0].trim().replace(/<br>/g, "")] || false;
+            let arg = option.slice(1).join("");
+    
+            if (!style) err = `没有${option[0]}这个选项`;
+            else if (/iframe/.test(arg)) err = "你想干什么？";
+            else if (style == "article_html" || style == "group_html") trans_args[style] = arg.trim();
             else {
-                if (/\[CQ:image/.test(arg)) err = `在${option[0]}这个位置不能插图`;
-                trans_args.article[style] = arg;
+                if (style == "origin" || style == "reply" || style == "group_info");
+                else if (arg) arg.trim().replace(/<br>/g, "");
+                
+                if (/^group_/.test(style) && !/\[CQ:image/.test(arg)) trans_args.group[style.replace(/^group_(?!info)/, "")] = arg;
+                else if (style == 'cover_origin') trans_args.cover_origin = true;
+                else if (style == 'no_group_info') trans_args.no_group_info = true;
+                else if (style == 'cover_origin_in_reply') trans_args.cover_origin_in_reply = true;
+                else if (style == 'no_group_info_in_reply') trans_args.no_group_info_in_reply = true;
+                else if (style == 'group_info' && /\[CQ:image/.test(arg)) trans_args.group.group_info = /(http.+?)\?/.exec(option.join(""))[1];
+                else if (style == 'choice') {
+                    trans_args.article.choice = arg.split(/[;；]/).filter((noEmpty) => {return noEmpty != undefined && noEmpty.length > 0});
+                }
+                else if (style == 'reply') {
+                    if (!Array.isArray(trans_args.article.reply)) trans_args.article.reply = [arg];
+                    else trans_args.article.reply.push(arg);
+                }
+                else if (style == "serialTrans") {
+                    trans_args.article.serialTrans = arg.split(/[;；]/, 10);
+                }
+                else if (style == "image" && /\[CQ:image/.test(arg)) {
+                    trans_args.article.image = /(http.+?)\?/.exec(option.join(""))[1];
+                }
+                else if (style == "replace" && /.\/[\u4E00-\u9FCB]/.test(arg)) {
+                    trans_args.extra.replace = arg.split(/[,，]/).filter((noEmpty) => {return noEmpty != undefined && noEmpty.length > 0});
+                }
+                else {
+                    if (/\[CQ:image/.test(arg)) err = `在${option[0]}这个位置不能插图`;
+                    trans_args.article[style] = arg;
+                }
             }
         }
     }
-
+    
     return {trans_args : trans_args, err : err};
 }
 
@@ -838,18 +876,19 @@ function seasoning(context) {
     let raw = context.message.replace(/\r\n/g, "<br>");
     try {
         let {groups : {twitter_url, username}} = /(?<twitter_url>https:\/\/twitter.com\/(?<username>.+?)\/status\/\d+)(?:\?s=\d{1,2})?/i.exec(raw);
-        let text_index = /[>＞]{1,2}/.exec(raw);
-        let text = raw.substring(text_index.index);
+        let text_index = /https:\/\/twitter\.com\/\w+?\/status\/\d+(?:\?s=\d{1,2})?/.exec(raw);
+        let text = raw.substring(text_index.index + text_index[0].length);
 
         findTemplate(username, context.group_id).then(async saved_trans_args => {
             if (!saved_trans_args) saved_trans_args = defaultTemplate;
             
-            if (/[>＞]{2}/.test(text)) {
-                text = text.substring(2).trim().replace(/^<br>/, "");
+            if (/^(\s|[>＞]{2}|<br>)/.test(text)) {
+                let starter = /^(\s|[>＞]{2}|<br>)/.exec(text);
+                text = text.substring(starter[1].length).trim().replace(/^<br>/, "");
                 saved_trans_args.article.origin = text;
                 cook(context, twitter_url, saved_trans_args);
             }
-            else {
+            else if (/^[>＞]/.test(text)) {
                 text = text.substring(1).trim();
                 let {trans_args, err} = setTemplate(text);
                 if (err) {
@@ -865,8 +904,8 @@ function seasoning(context) {
                         else next[key] = next[key] != undefined ? next[key] : prev[key];
                     }
                     return next;
-                })
-                
+                });
+
                 if (!('trans_html' in trans_args) && !('origin' in trans_args.article) 
                     && !('reply' in trans_args.article) && !('serialTrans' in trans_args.article)) {
                     replyFunc(context, "你没加翻译", true);
@@ -883,7 +922,12 @@ function seasoning(context) {
                     }
                     else serialTweet(context, twitter_url, trans_args);
                 }
+
                 else cook(context, twitter_url, trans_args);
+            }
+            else {
+                replyFunc(context, "语法错误");
+                throw "语法错误";
             }
         });
     } catch(err) {
@@ -909,7 +953,7 @@ function prepare(context) {
             else {
                 let twitter_url = summ.list[num - 1];
                 context.message = context.message.replace(num, twitter_url);
-                if (/^(Twitter|推特)截图/i.test(context.message)) cook(context, twitter_url);
+                if (/^(Twitter|推特)?截图/i.test(context.message)) cook(context, twitter_url);
                 else seasoning(context);
             }
             mongo.close();
@@ -931,11 +975,11 @@ function complex(context) {
         prepare(context);
         return true;
     }
-    else if (connection && /^烤制\s?https:\/\/twitter.com\/.+?\/status\/\d{19}(?:\?s=\d{1,2})?\s?[>＞]{1,2}/i.test(context.message)) {
+    else if (connection && /^烤制\s?https:\/\/twitter.com\/.+?\/status\/\d{19}(?:\?s=\d{1,2})?\s?([>＞]{1,2}|\s|\r\n)/i.test(context.message)) {
         seasoning(context);
         return true;
     }
-    else if (connection && /^烤制\s?\d{1,3}\s?[>＞]{1,2}/i.test(context.message)) {
+    else if (connection && /^烤制\s?\d{1,3}([>＞]{1,2}|\s|\r\n)/i.test(context.message)) {
         prepare(context);
         return true;
     }
