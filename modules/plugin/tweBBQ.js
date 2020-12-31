@@ -158,6 +158,34 @@ async function cook(context, twitter_url, trans_args={}) {
                         image.parentElement.firstChild.style.backgroundImage = `url(${trans_args.article.image})`
                         image.src = trans_args.article.image;
                     }
+                    else {
+                        let img_outer = document.createElement("div");
+                        img_outer.className = "css-1dbjc4n r-9x6qib r-1867qdf r-1phboty r-rs99b7 r-156q2ks r-1ny4l3l r-1udh08x r-o7ynqc r-6416eg";
+                        img_outer.style = "border-color: rgb(204, 214, 221); border-radius: 16px;"
+
+                        let img_inner = document.createElement("div");
+                        img_inner.className = "css-1dbjc4n r-1niwhzg r-vvn4in r-u6sd8q r-4gszlv r-1p0dtai r-1pi2tsx r-1d2f490 r-u8s1d r-zchlnj r-ipm5af r-13qz1uu r-1wyyakw"
+                        img_inner.style.backgroundImage = `url(${trans_args.article.image})`;
+
+                        let newImg = document.createElement("img");
+                        newImg.src = trans_args.article.image;
+                        newImg.className = "css-9pa8cd";
+
+                        let img_padding = document.createElement("div");
+                        img_padding.className = "r-1adg3ll r-13qz1uu";
+
+                        let img_wrapper = document.createElement("div");
+
+                        img_outer.appendChild(img_padding);
+                        img_outer.appendChild(img_wrapper);
+                        img_wrapper.appendChild(img_inner);
+                        img_wrapper.appendChild(newImg);
+
+                        newImg.onload = () => {
+                            img_padding.style.paddingBottom = `${(100 * newImg.height/newImg.width).toPrecision(4)}%`;
+                            article.insertBefore(img_outer, article.firstElementChild.nextSibling);
+                        }
+                    }
                 }
 
                 let video = document.querySelector('[data-testid="videoPlayer"]');
@@ -399,7 +427,7 @@ function ensureStructure(trans_args, conversation) {
 
 async function fillHtml(trans_args, conversation) {
     let html_ready = await setupHTML(trans_args, conversation);
-    
+
     if (trans_args.cover_origin != undefined && trans_args.cover_origin_in_reply == undefined) {
         trans_args.cover_origin_in_reply = trans_args.cover_origin;
     }
@@ -576,7 +604,7 @@ async function setupHTML(trans_args, conversation) {
             trans_args.group.size = trans_args.group.size == defaultTemplate.group.size ? '30px' : trans_args.group.size;
             let img64 = "data:image/jpeg;base64," + await axios.get(trans_args.group.group_info, {responseType:'arraybuffer'})
                                                                 .then(res => {return Buffer.from(res.data, 'binary').toString('base64')});
-            html_ready.trans_group_html = `<img style="margin: 2px 0px -3px 1px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
+            html_ready.trans_group_html = `<img style="margin: 4px 0px -3px 1px; height: auto; width: auto; max-height: ${trans_args.group.size}; max-width: 100%;" src="${img64}">`;
         }
         else {
             html_ready.trans_group_html = (trans_args.group_html == undefined) ? 
@@ -759,7 +787,7 @@ function setTemplate(unparsed) {
     const ARGS_REG = new RegExp(`(?<=${ARGS})[=＝]`, "i");
     const ARG_TEST = new RegExp(`[+＋](${ARGS})[=＝]`, "i");
 
-    if (!ARG_TEST.test(unparsed)) {
+    if (!ARG_TEST.test(unparsed) && !/[+＋](覆盖|无汉化组|回复中覆盖|回复中无汉化组)/.test(unparsed)) {
         const SENTENCES = unparsed.split(/<br>[+＋]/);
         trans_args.article.origin = SENTENCES[0];
 
@@ -893,7 +921,7 @@ function seasoning(context) {
                 let {trans_args, err} = setTemplate(text);
                 if (err) {
                     replyFunc(context, err, true);
-                    return
+                    return;
                 };
 
                 [saved_trans_args, trans_args].reduce((prev, next) => {
