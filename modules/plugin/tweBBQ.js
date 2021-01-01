@@ -133,7 +133,9 @@ async function cook(context, twitter_url, trans_args={}) {
                 if (header && header.parentNode) header.parentNode.removeChild(header);
                 let footer = document.getElementsByClassName('css-1dbjc4n r-aqfbo4 r-1p0dtai r-1d2f490 r-12vffkv r-1xcajam r-zchlnj')[0];
                 if (footer && footer.parentNode) footer.parentNode.removeChild(footer);
-
+                let header_back = document.querySelector('.css-1dbjc4n .r-1loqt21 .r-136ojw6');
+                if (header_back && header_back.parentNode) header_back.parentNode.removeChild(header_back);
+                
                 let articles = document.querySelectorAll('article');
                 let article = articles[0].querySelector('[role=group]').parentElement;
                 insert(article, html_ready.trans_article_html, 
@@ -252,6 +254,8 @@ async function cook(context, twitter_url, trans_args={}) {
                 if (header && header.parentNode) header.parentNode.removeChild(header);
                 let footer = document.getElementsByClassName('css-1dbjc4n r-aqfbo4 r-1p0dtai r-1d2f490 r-12vffkv r-1xcajam r-zchlnj')[0];
                 if (footer && footer.parentNode) footer.parentNode.removeChild(footer);
+                let header_back = document.querySelector('.css-1dbjc4n .r-1loqt21 .r-136ojw6');
+                if (header_back && header_back.parentNode) header_back.parentNode.removeChild(header_back);
 
                 let video = document.querySelector('[data-testid="videoPlayer"]');
                 if (video) {
@@ -785,61 +789,56 @@ function setTemplate(unparsed) {
     
     const ARGS_SPT = new RegExp(`[+＋](?=${ARGS})`, "i");
     const ARGS_REG = new RegExp(`(?<=${ARGS})[=＝]`, "i");
-    const ARG_TEST = new RegExp(`[+＋](${ARGS})[=＝]`, "i");
 
-    if (!ARG_TEST.test(unparsed) && !/[+＋](覆盖|无汉化组|回复中覆盖|回复中无汉化组)/.test(unparsed)) {
-        const SENTENCES = unparsed.split(/<br>[+＋]/);
-        trans_args.article.origin = SENTENCES[0];
+    const STYLE_OPTIONS = unparsed.split(ARGS_SPT);
+    for (let i in STYLE_OPTIONS) {
+        let option = STYLE_OPTIONS[i].split(ARGS_REG).filter((noEmpty) => {return noEmpty != undefined});
+        let style = BBQ_ARGS[option[0].trim().replace(/<br>/g, "")] || false;
+        let arg = option.slice(1).join("");
 
-        if (SENTENCES.length > 1) {
-            for (let i = 1; i < SENTENCES.length; i++) {
-                if (!Array.isArray(trans_args.article.reply)) trans_args.article.reply = [];
-                if (/\[CQ:image/.test(SENTENCES[i])) trans_args.article.image = /(http.+?)\?/.exec(SENTENCES[i])[1];
-                else trans_args.article.reply.push(SENTENCES[i]);
+        if (!style) {
+            let sentences = unparsed.split(/<br>[+＋]/);
+            trans_args.article.origin = sentences[0];
+
+            if (sentences.length > 1) {
+                for (let i = 1; i < sentences.length; i++) {
+                    if (!Array.isArray(trans_args.article.reply)) trans_args.article.reply = [];
+                    if (/\[CQ:image/.test(sentences[i])) trans_args.article.image = /(http.+?)\?/.exec(sentences[i])[1];
+                    else trans_args.article.reply.push(sentences[i]);
+                }
             }
         }
-        else err = "出错惹，换个精确点的写法";
-    }
-    else {
-        const STYLE_OPTIONS = unparsed.split(ARGS_SPT);
-        for (let i in STYLE_OPTIONS) {
-            let option = STYLE_OPTIONS[i].split(ARGS_REG).filter((noEmpty) => {return noEmpty != undefined});
-            let style = BBQ_ARGS[option[0].trim().replace(/<br>/g, "")] || false;
-            let arg = option.slice(1).join("");
-    
-            if (!style) err = `没有${option[0]}这个选项`;
-            else if (/iframe/.test(arg)) err = "你想干什么？";
-            else if (style == "article_html" || style == "group_html") trans_args[style] = arg.trim();
+        else if (/iframe/.test(arg)) err = "你想干什么？";
+        else if (style == "article_html" || style == "group_html") trans_args[style] = arg.trim();
+        else {
+            if (style == "origin" || style == "reply" || style == "group_info");
+            else if (arg) arg.trim().replace(/<br>/g, "");
+            
+            if (/^group_/.test(style) && !/\[CQ:image/.test(arg)) trans_args.group[style.replace(/^group_(?!info)/, "")] = arg;
+            else if (style == 'cover_origin') trans_args.cover_origin = true;
+            else if (style == 'no_group_info') trans_args.no_group_info = true;
+            else if (style == 'cover_origin_in_reply') trans_args.cover_origin_in_reply = true;
+            else if (style == 'no_group_info_in_reply') trans_args.no_group_info_in_reply = true;
+            else if (style == 'group_info' && /\[CQ:image/.test(arg)) trans_args.group.group_info = /(http.+?)\?/.exec(option.join(""))[1];
+            else if (style == 'choice') {
+                trans_args.article.choice = arg.split(/[;；]/).filter((noEmpty) => {return noEmpty != undefined && noEmpty.length > 0});
+            }
+            else if (style == 'reply') {
+                if (!Array.isArray(trans_args.article.reply)) trans_args.article.reply = [arg];
+                else trans_args.article.reply.push(arg);
+            }
+            else if (style == "serialTrans") {
+                trans_args.article.serialTrans = arg.split(/[;；]/, 10);
+            }
+            else if (style == "image" && /\[CQ:image/.test(arg)) {
+                trans_args.article.image = /(http.+?)\?/.exec(option.join(""))[1];
+            }
+            else if (style == "replace" && /.\/[\u4E00-\u9FCB]/.test(arg)) {
+                trans_args.extra.replace = arg.split(/[,，]/).filter((noEmpty) => {return noEmpty != undefined && noEmpty.length > 0});
+            }
             else {
-                if (style == "origin" || style == "reply" || style == "group_info");
-                else if (arg) arg.trim().replace(/<br>/g, "");
-                
-                if (/^group_/.test(style) && !/\[CQ:image/.test(arg)) trans_args.group[style.replace(/^group_(?!info)/, "")] = arg;
-                else if (style == 'cover_origin') trans_args.cover_origin = true;
-                else if (style == 'no_group_info') trans_args.no_group_info = true;
-                else if (style == 'cover_origin_in_reply') trans_args.cover_origin_in_reply = true;
-                else if (style == 'no_group_info_in_reply') trans_args.no_group_info_in_reply = true;
-                else if (style == 'group_info' && /\[CQ:image/.test(arg)) trans_args.group.group_info = /(http.+?)\?/.exec(option.join(""))[1];
-                else if (style == 'choice') {
-                    trans_args.article.choice = arg.split(/[;；]/).filter((noEmpty) => {return noEmpty != undefined && noEmpty.length > 0});
-                }
-                else if (style == 'reply') {
-                    if (!Array.isArray(trans_args.article.reply)) trans_args.article.reply = [arg];
-                    else trans_args.article.reply.push(arg);
-                }
-                else if (style == "serialTrans") {
-                    trans_args.article.serialTrans = arg.split(/[;；]/, 10);
-                }
-                else if (style == "image" && /\[CQ:image/.test(arg)) {
-                    trans_args.article.image = /(http.+?)\?/.exec(option.join(""))[1];
-                }
-                else if (style == "replace" && /.\/[\u4E00-\u9FCB]/.test(arg)) {
-                    trans_args.extra.replace = arg.split(/[,，]/).filter((noEmpty) => {return noEmpty != undefined && noEmpty.length > 0});
-                }
-                else {
-                    if (/\[CQ:image/.test(arg)) err = `在${option[0]}这个位置不能插图`;
-                    trans_args.article[style] = arg;
-                }
+                if (/\[CQ:image/.test(arg)) err = `在${option[0]}这个位置不能插图`;
+                trans_args.article[style] = arg;
             }
         }
     }
@@ -901,7 +900,7 @@ function findTemplate(username, group_id) {
 }
 
 function seasoning(context) {
-    let raw = context.message.replace(/\r\n/g, "<br>");
+    let raw = context.message.replace(/\r\n|\n/g, "<br>");
     try {
         let {groups : {twitter_url, username}} = /(?<twitter_url>https:\/\/twitter.com\/(?<username>.+?)\/status\/\d+)(?:\?s=\d{1,2})?/i.exec(raw);
         let text_index = /https:\/\/twitter\.com\/\w+?\/status\/\d+(?:\?s=\d{1,2})?/.exec(raw);
@@ -909,7 +908,7 @@ function seasoning(context) {
 
         findTemplate(username, context.group_id).then(async saved_trans_args => {
             if (!saved_trans_args) saved_trans_args = defaultTemplate;
-            
+
             if (/^(\s|[>＞]{2}|<br>)/.test(text)) {
                 let starter = /^(\s|[>＞]{2}|<br>)/.exec(text);
                 text = text.substring(starter[1].length).trim().replace(/^<br>/, "");
