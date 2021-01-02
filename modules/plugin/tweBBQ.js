@@ -125,6 +125,8 @@ async function cook(context, twitter_url, trans_args={}) {
         await page.emulateTimezone('Asia/Tokyo');
         await page.goto(twitter_url, {waitUntil : "networkidle0"});
 
+        await page.click('.r-tm2x56 [role=button]').catch(err => {});
+
         if (trans_args && Object.keys(trans_args).length > 0) {
             await page.evaluate((html_ready, trans_args, conversation) => {
                 let banner = document.getElementsByTagName('header')[0];
@@ -135,17 +137,13 @@ async function cook(context, twitter_url, trans_args={}) {
                 if (footer && footer.parentNode) footer.parentNode.removeChild(footer);
                 let header_back = document.querySelector('.css-1dbjc4n .r-1loqt21 .r-136ojw6');
                 if (header_back && header_back.parentNode) header_back.parentNode.removeChild(header_back);
-                
+
                 let articles = document.querySelectorAll('article');
                 let article = articles[0].querySelector('[role=group]').parentElement;
                 insert(article, html_ready.trans_article_html, 
                     html_ready.reply_html != undefined ? ((trans_args.no_group_info && trans_args.no_group_info_in_reply) ? '' : html_ready.logo_in_reply) 
                         : html_ready.trans_group_html
                     , trans_args.cover_origin);
-
-                if (articles[0].querySelector('[href="/settings/safety"]') != null) {
-                    articles[0].querySelector('[href="/settings/safety"]').parentElement.parentElement.parentElement.children[1].firstChild.click();
-                }
                 
                 if (trans_args.article.image != undefined) {
                     trans_args.article.image = "data:image/jpeg;base64," + trans_args.article.image;
@@ -449,9 +447,10 @@ async function fillHtml(trans_args, conversation) {
         trans_args.article.image = await marshmallow.toast({}, trans_args.article.marshmallow, false);
     }
 
-    html_ready.logo_in_reply = 
-        `<div style="margin: 1px 0px 2px 1px; display: inline-block;">${decoration(defaultTemplate.group.logo_in_reply, defaultTemplate.group)}</div>`;
-
+    if ("reply" in trans_args.article && trans_args.article.length > 0) {
+        html_ready.logo_in_reply = `<div style="margin: 1px 0px 2px 1px; display: inline-block;">${decoration(defaultTemplate.group.logo_in_reply, defaultTemplate.group)}</div>`;
+    }
+    
     return html_ready;
 }
 
@@ -922,7 +921,6 @@ function seasoning(context) {
                     replyFunc(context, err, true);
                     return;
                 };
-
                 [saved_trans_args, trans_args].reduce((prev, next) => {
                     for (let key in prev) {
                         if (typeof(prev[key]) == "object") {
