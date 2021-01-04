@@ -29,9 +29,12 @@ const defaultTemplate = {
         background : "",
         font_family : "source-han-serif-sc",
         text_decoration : "",
-        logo_in_reply : "--------------"
     },
-    extre : {},
+    in_reply: {
+        logo : "--------------",
+        logo_size : "13px"
+    },
+    extra : {},
     cover_origin : false,
     no_group_info : false,
     cover_origin_in_reply : false,
@@ -57,6 +60,8 @@ const BBQ_ARGS = {
     "汉化组字体" : "group_font_family",
     "汉化组装饰" : "group_text_decoration",
     "汉化组css" : "group_css",
+    "回复中logo" : "in_reply_logo",
+    "回复中logo大小" : "in_reply_logo_size",
     "背景" : "background",
     "引用" : "quote",
     "选项" : "choice",
@@ -108,6 +113,7 @@ async function cook(context, twitter_url, trans_args={}) {
 
         let html_ready = {};
         if (trans_args && Object.keys(trans_args).length > 0) {
+            trans_args = fillTemplate(trans_args);
             trans_args = ensureStructure(trans_args, conversation);
             html_ready = await fillHtml(trans_args, conversation);
         }
@@ -137,7 +143,7 @@ async function cook(context, twitter_url, trans_args={}) {
                 if (footer && footer.parentNode) footer.parentNode.removeChild(footer);
                 let header_back = document.querySelector('.css-1dbjc4n .r-1loqt21 .r-136ojw6');
                 if (header_back && header_back.parentNode) header_back.parentNode.removeChild(header_back);
-
+                
                 let articles = document.querySelectorAll('article');
                 let article = articles[0].querySelector('[role=group]').parentElement;
                 insert(article, html_ready.trans_article_html, 
@@ -424,6 +430,7 @@ function ensureStructure(trans_args, conversation) {
     if ("reply" in trans_args.article && trans_args.article.reply.length < 1) {
         trans_args.article.reply = undefined;
     }
+
     return trans_args;
 }
 
@@ -447,8 +454,11 @@ async function fillHtml(trans_args, conversation) {
         trans_args.article.image = await marshmallow.toast({}, trans_args.article.marshmallow, false);
     }
 
-    if ("reply" in trans_args.article && trans_args.article.length > 0) {
-        html_ready.logo_in_reply = `<div style="margin: 1px 0px 2px 1px; display: inline-block;">${decoration(defaultTemplate.group.logo_in_reply, defaultTemplate.group)}</div>`;
+    if ("reply" in trans_args.article && trans_args.article.reply.length > 0) {
+        let logo_in_reply = Object.create(trans_args.group);
+        logo_in_reply.size = trans_args.in_reply.logo_size;
+        html_ready.logo_in_reply = 
+            `<div style="margin: 1px 0px 2px 1px; display: inline-block;">${decoration(trans_args.in_reply.logo, logo_in_reply)}</div>`;
     }
     
     return html_ready;
@@ -576,7 +586,6 @@ function convProcess(trans_args, conversation) {
 }
 
 async function setupHTML(trans_args, conversation) {
-    trans_args = fillTemplate(trans_args);
     conversation = convProcess(trans_args, conversation);
 
     let html_ready = {}
@@ -783,7 +792,7 @@ function textAlter(patterns, text) {
 
 function setTemplate(unparsed) {
     const ARGS = Object.keys(BBQ_ARGS).join("|");
-    let trans_args = {article : {}, group : {}, extra : {}};
+    let trans_args = {article : {}, group : {}, in_reply : {},extra : {}};
     let err = false;
     
     const ARGS_SPT = new RegExp(`[+＋](?=${ARGS})`, "i");
@@ -814,6 +823,7 @@ function setTemplate(unparsed) {
             else if (arg) arg.trim().replace(/<br>/g, "");
             
             if (/^group_/.test(style) && !/\[CQ:image/.test(arg)) trans_args.group[style.replace(/^group_(?!info)/, "")] = arg;
+            else if (/^in_reply_/.test(style)) trans_args.in_reply[style.replace(/^in_reply_/, "")] = arg;
             else if (style == 'cover_origin') trans_args.cover_origin = true;
             else if (style == 'no_group_info') trans_args.no_group_info = true;
             else if (style == 'cover_origin_in_reply') trans_args.cover_origin_in_reply = true;
@@ -906,7 +916,7 @@ function seasoning(context) {
         let text = raw.substring(text_index.index + text_index[0].length);
 
         findTemplate(username, context.group_id).then(async saved_trans_args => {
-            if (!saved_trans_args) saved_trans_args = defaultTemplate;
+            if (!saved_trans_args) saved_trans_args = Object.create(defaultTemplate);
 
             if (/^(\s|[>＞]{2}|<br>)/.test(text)) {
                 let starter = /^(\s|[>＞]{2}|<br>)/.exec(text);
@@ -947,7 +957,6 @@ function seasoning(context) {
                     }
                     else serialTweet(context, twitter_url, trans_args);
                 }
-
                 else cook(context, twitter_url, trans_args);
             }
             else {
