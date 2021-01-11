@@ -2,6 +2,11 @@
 
 ## 2021
 
+## 01/11 2.9.1
+* initialise:
+  * Feat: 全局功能初始化
+* boardcast: 该功能移除
+
 ## 01/04 2.9.0
 * tweBBQ:
   * Feat: 新增"回复中logo" 和 "回复中logo大小" 两项可调整样式
