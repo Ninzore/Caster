@@ -9,10 +9,18 @@ import twitter from './modules/plugin/twitter';
 // import translate from "./modules/plugin/translate";
 import tweBBQ from "./modules/plugin/tweBBQ";
 import marshmallow from './modules/plugin/marshmallow';
+import {initialise} from "./utils/initilise";
 
 // 常量
 const setting = config.bot;
 const bot = new CQWebSocket(config.cqws);
+
+// 初始化
+initialise();
+Object.assign(global, {
+  bot,
+  "replyFunc" : replyMsg
+});
 
 // 开始
 bilibili.bilibiliReply(replyMsg);
