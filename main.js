@@ -4,7 +4,6 @@ import config from './modules/config';
 import CQ from './modules/CQcode';
 import _ from 'lodash';
 import minimist from 'minimist';
-import broadcast from './modules/broadcast';
 import bilibili from './modules/plugin/bilibili';
 import twitter from './modules/plugin/twitter';
 // import translate from "./modules/plugin/translate";
@@ -93,8 +92,6 @@ bot.on('message.private', (e, context) => {
       delete groupAddRequests[context.group_id];
     }
   }
-
-  if (args.broadcast) broadcast(bot, parseArgs(context.message, false, 'broadcast'));
 
   // 停止程序（利用pm2重启）
   if (args.shutdown) process.exit();
