@@ -2,7 +2,6 @@ import { version } from './package.json';
 import { CQWebSocket } from 'cq-websocket';
 import config from './modules/config';
 import CQ from './modules/CQcode';
-import _ from 'lodash';
 import minimist from 'minimist';
 import bilibili from './modules/plugin/bilibili';
 import twitter from './modules/plugin/twitter';
