@@ -1,14 +1,14 @@
 import { version } from './package.json';
 import { CQWebSocket } from 'cq-websocket';
-import config from './modules/config';
-import CQ from './modules/CQcode';
+import config from './utils/config';
+import CQ from './utils/CQcode';
 import minimist from 'minimist';
-import bilibili from './modules/plugin/bilibili';
-import twitter from './modules/plugin/twitter';
+import bilibili from './plugin/bilibili';
+import twitter from './plugin/twitter';
 // import translate from "./modules/plugin/translate";
-import tweBBQ from "./modules/plugin/tweBBQ";
-import marshmallow from './modules/plugin/marshmallow';
-import {initialise} from "./utils/initilise";
+import tweBBQ from "./plugin/tweBBQ";
+import marshmallow from './plugin/marshmallow';
+import {initialise} from "./utils/initialise";
 
 // 常量
 const setting = config.bot;
