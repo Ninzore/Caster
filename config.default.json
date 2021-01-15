@@ -21,5 +21,12 @@
     "proxy": {
         "host": "",
         "port": 0
+    },
+    "translate": {
+        "tencent": {
+            "secretId": "",
+            "secretKey": "",
+            "region": "ap-shanghai"
+          }
     }
 }
