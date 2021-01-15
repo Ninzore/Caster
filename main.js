@@ -5,7 +5,7 @@ import CQ from './utils/CQcode';
 import minimist from 'minimist';
 import bilibili from './plugin/bilibili';
 import twitter from './plugin/twitter';
-// import translate from "./modules/plugin/translate";
+import translate from "./plugin/translate";
 import tweBBQ from "./plugin/tweBBQ";
 import marshmallow from './plugin/marshmallow';
 import {initialise} from "./utils/initialise";
@@ -24,7 +24,7 @@ Object.assign(global, {
 // 开始
 bilibili.bilibiliReply(replyMsg);
 twitter.twitterReply(replyMsg);
-// translate.transReply(replyMsg);
+translate.transReply(replyMsg);
 tweBBQ.cookTweReply(replyMsg);
 
 setTimeout(() => bilibili.checkBiliDynamic(replyMsg), 20000);
@@ -171,12 +171,13 @@ function groupMsg(e, context) {
         e.stopPropagation();
         return;
     }
+    translate.orientedTrans(context);
 
     if (bilibili.bilibiliCheck(context) ||
         twitter.twitterAggr(context) ||
         marshmallow.prepare(context, replyMsg) ||
-        tweBBQ.complex(context, replyMsg) 
-        // translate.transEntry(context)
+        tweBBQ.complex(context, replyMsg) ||
+        translate.transEntry(context)
         ) {
         e.stopPropagation();
         return;

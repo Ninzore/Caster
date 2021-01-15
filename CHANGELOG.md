@@ -2,6 +2,16 @@
 
 ## 2021
 
+## 01/15 2.9.3
+* translate:
+  * Feat: 移动到腾讯云平台，需要secretId和secretKey
+  * Feat: 支持对一个人进行持续翻译
+
+## 01/14 2.9.2
+* directory structure change:
+  * from ./modules/plugin to ./plugin
+  * from ./modules to ./utils
+
 ## 01/11 2.9.1
 * initialise:
   * Feat: 全局功能初始化

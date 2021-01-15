@@ -1,6 +1,6 @@
 {
   "name": "caster",
-  "version": "2.9.2",
+  "version": "2.9.3",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -27,7 +27,8 @@
     "fs-extra": "^9.0.1",
     "minimist": "^1.2.5",
     "mongodb": "^3.6.0",
-    "puppeteer": "^5.5.0"
+    "puppeteer": "^5.5.0",
+    "tencentcloud-sdk-nodejs": "^4.0.50"
   },
   "devDependencies": {},
   "description": "Wecab汉化组特化型"
