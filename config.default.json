@@ -22,6 +22,9 @@
         "host": "",
         "port": 0
     },
+    "twitter": {
+        "token": ""
+    },
     "translate": {
         "tencent": {
             "secretId": "",
