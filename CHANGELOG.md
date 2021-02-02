@@ -4,6 +4,11 @@
 
 ## 01/15 2.9.3
 * translate:
+  * Feat: 迁移到Twitter stream提供更低延迟的转发（添加Filtered Stream rule需要手工操作）
+  * Feat: config增加twitter部分
+
+## 01/15 2.9.3
+* translate:
   * Feat: 移动到腾讯云平台，需要secretId和secretKey
   * Feat: 支持对一个人进行持续翻译
 
