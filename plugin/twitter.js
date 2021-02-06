@@ -10,6 +10,10 @@ const DB_PATH = "mongodb://127.0.0.1:" + DB_PORT;
 const BEARER_TOKEN = global.config.twitter.token;
 const OFFICIAL_TOKEN = "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA";
 const MAX_SIZE = 4194304;
+const MAX_DURATION = 3 * 60 * 1000;
+const DOWNLOAD_PATH = path.join(__dirname, "../../data/twitter/");
+const BASE_URL = global.config.twitter.base_url;
+
 const OPTION_MAP = {
     "仅原创" : "origin_only",
     "仅转发" : "retweet_only",
@@ -31,7 +35,7 @@ const POSTTYPE_MAP = {
     "no_reply" : [1, 1, 0, 1],
     "pic_only" : [0, 0, 0, 1],
     "all" : [1, 1, 1, 1]
-} 
+}
 
 let axios = false;
 let guest_token = "";
@@ -94,7 +98,7 @@ function toOptNl(option) {
 function firstConnect() {
     checkConnection().then(() => {
         if (!connection) {
-            console.error("Twitter无法连接，功能暂停");
+            console.log("Twitter无法连接，功能暂停");
         }
         else {
             getGuestToken();
@@ -366,10 +370,8 @@ function checkTwiTimeline() {
     mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
         const twitter_db = mongo.db('bot').collection('twitter');
         const group_option = mongo.db('bot').collection('group_option');
-        const twe_sum = mongo.db('bot').collection('twe_sum');
         const subscribes = await twitter_db.find({}).toArray();
         const options = await group_option.find({}).toArray();
-        const summ = await twe_sum.find({}, {projection : {list : 0}}).toArray();
 
         let subscribes_ = {};
         for (let user of subscribes) {
@@ -392,8 +394,9 @@ function checkTwiTimeline() {
         //     subscribes = await twitter_db.find({}).toArray();
         //     subscribes != undefined ? checkEach() : console.error("twitter database error");
         // }
-        mongo.close();
+
         stream(subscribes_, options_);
+        await mongo.close();
     });
 }
 
@@ -416,54 +419,67 @@ function stream(subscribes, options) {
             "tweet.fields" : "created_at"
         }
     }).then(res => {
-        console.log("Twitter stream 已连接");
-        stream_retry = 0;
-        const stream = res.data;
-        stream.on("data", data => {
-            let text = data.toString();
-            if (text.length < 3) ;
-            else {
-                const serialised = JSON.parse(text);
-                getSingleTweet(serialised.data.id).then(tweet => {
-                    mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
-                        const summ = await twe_sum.find({}, {projection : {list : 0}}).toArray();
-                        await mongo.close();
-                        let summ_ = {};
-                        for (let group of summ) {
-                            summ_[group.group_id] = group;
-                        }
-
-                        const subscribe = subscribes[serialised.includes.users[0].id];
-                        retweet(tweet, subscribe, options, summ_);
+        try {
+            console.log("Twitter stream 已连接");
+            stream_retry = 0;
+            const stream = res.data;
+            stream.on("data", data => {
+                let text = data.toString();
+                if (text.length < 3) ;
+                else {
+                    const serialised = JSON.parse(text);
+                    if (serialised.data === undefined) {
+                        console.log("undefined data: ", text);
+                    }
+                    else getSingleTweet(serialised.data.id).then(tweet => {
+                        mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
+                            const twe_sum = mongo.db('bot').collection('twe_sum');
+                            const summ = await twe_sum.find({}, {projection : {list : 0}}).toArray();
+                            
+                            let summ_ = {};
+                            for (let group of summ) {
+                                summ_[group.group_id] = group;
+                            }
+                            console.log(serialised.includes.users[0].name, serialised)
+                            const subscribe = subscribes[serialised.includes.users[0].id];
+                            retweet(tweet, subscribe, options, summ_);
+                            await mongo.close();
+                        });
                     });
-                });
-            }
-        });
-        stream.on("error", data => {
-            console.log("Twitter stream error: ", data.toString());
-            throw 1;
-        });
-        stream.on("close", data => {
-            console.log("Twitter stream closed 连接丢失", data.toString());
-            throw 1;
-        });
-    }).catch(err => {
-        if (typeof err === "object") console.log(err.response.status);
-        let time = new Date();
-        console.log(time.getHours(), time.getMinutes());
-        
-        if (stream_retry < 4) {
-            stream_retry ++;
-            console.log("10秒后尝试重连");
-            setTimeout(() => stream(subscribes, options, summ), 10000);
-        } else {
-            console.log("Twitter stream 断线");
-            replyFunc({user_id: global.config.bot.admin, message_type : "private"}, "断线");
+                }
+            });
+            stream.on("error", data => {
+                retry(`Twitter stream error: ${data.toString()}`, subscribes, options);
+            });
+            stream.on("close", () => {
+                retry("Twitter stream closed 连接丢失", subscribes, options);
+            });
         }
+        catch(err) {
+            retry(err, subscribes, options);
+        }
+        
+    }).catch(err => {
+        retry(err, subscribes, options);
     });
 }
 
-function retweet(tweet, subscribe, options, summ) {
+function retry(err, subscribes, options) {
+    let time = new Date();
+    console.error(time.getHours(), time.getMinutes());
+    if (typeof err === "object") console.error("Twitter Stream connection failed with code ", err.response.status);
+    else console.error(err);
+    
+    if (stream_retry < 4) {
+        stream_retry ++;
+        setTimeout(() => stream(subscribes, options), 15000);
+    } else {
+        console.error("Twitter stream disconnected and out of retry times 彻底断线");
+        replyFunc({user_id: global.config.bot.admin, message_type : "private"}, "Twitter stream 断线");
+    }
+}
+
+async function retweet(tweet, subscribe, options, summ) {
     try {
         const groups = subscribe.groups;
         let bbq_group = [];
@@ -494,19 +510,20 @@ function retweet(tweet, subscribe, options, summ) {
                     if (option.notice != undefined) addon.push(`${option.notice}`);
                     if (option.bbq == true) {
                         count++;
-                        addon.push(`坑位号: ${count}`);
+                        addon.push(`序列号: ${count}`);
                         bbq_url = url;
                     }
                 }
+                updateTwitter(tweet, bbq_group, bbq_url, subscribe);
+
                 addon.push(url);
-                format(tweet).then(payload => {
+                const context = {group_id : group_id, message_type : "group"};
+                format(tweet, false, status == "origin" ? true : false).then(payload => {
                     payload += `\n\n${addon.join("\n")}`
-                    replyFunc({group_id : group_id, message_type : "group"}, payload);
+                    replyFunc(context, payload);
                 }).catch(err => console.error(err));
             }
         }
-    
-        setTimeout(updateTwitter, 500, tweet, bbq_group, bbq_url, subscribe);
     }
     catch(err) {
         console.error(err);
@@ -537,29 +554,14 @@ function needPost(status, option) {
 function updateTwitter(tweet, bbq_group, url, subscribe) {
     mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
         const twitter_db = mongo.db('bot').collection('twitter');
-        await twitter_db.updateOne(
-            {_id : subscribe._id},
-            {$set : {tweet_id : tweet.id_str, name : tweet.user.name}})
-            .then(result => {
-                if (result.result.nModified < 1) {
-                    console.error(tweet.id_str, subscribe.tweet_id, tweet.user.name,
-                         result, "\n twitter_db update error during checkTwitter");
-                }
-            })
-            .catch(err => console.error(err + "\n twitter_db update error during checkTwitter"));
+        await twitter_db.updateOne({_id : subscribe._id},
+            {$set : {tweet_id : tweet.id_str, name : tweet.user.name}});
 
         if (url) {
             const twe_sum = mongo.db('bot').collection('twe_sum');
             for (let group_id of bbq_group) {
-                await twe_sum.updateOne(
-                    {group_id : group_id},
+                await twe_sum.updateOne({group_id : group_id}, 
                     {$inc : {count : 1}, $push : {list : url}})
-                    .then(result => {
-                        if (result.result.nModified < 1) {
-                            console.error("\n twe_sum can't update during checkTwitter, group_id=" + group_id + url_list);
-                        }
-                    })
-                    .catch(err => console.error(err + "\n twe_sum update error during checkTwitter"));
             }
         }
         mongo.close();
@@ -575,7 +577,6 @@ function checkSubs(context) {
     mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
         const group_option = mongo.db('bot').collection('group_option');
         let options = await group_option.findOne({group_id : group_id});
-
         let subs = [];
         for (let sub in options.twitter) {
             let name = options.twitter[sub].name;
@@ -622,13 +623,13 @@ function clearSubs(context, group_id) {
  * @param {string} from_user Twitter用户名
  * @returns Promise  排列完成的Tweet String
  */
-async function format(tweet, end_point=false) {
+async function format(tweet, end_point = false, down = false) {
     let payload = [];
     let text = "";
     if('full_text' in tweet) text = tweet.full_text;
     else text = tweet.text;
     if ("retweeted_status" in tweet) {
-        let rt_status = await format(tweet.retweeted_status)
+        let rt_status = await format(tweet.retweeted_status, true);
         payload.push(`来自${tweet.user.name}的Twitter\n转推了`, rt_status);
         return payload.join("\n");
     }
@@ -669,17 +670,27 @@ async function format(tweet, end_point=false) {
                             if (media[i].video_info.variants[j].content_type == "video/mp4") mp4obj.push(media[i].video_info.variants[j]);
                         }
                         mp4obj.sort((a, b) => {return b.bitrate - a.bitrate;});
-                        payload.push(`[CQ:image,cache=0,file=${media[i].media_url_https}]`,
-                                     `视频地址: ${mp4obj[0].url}`);
+                        payload.push(`[CQ:image,cache=0,file=${media[i].media_url_https}]`);
+
+                        if (down) {
+                            if (fs.existsSync(path.join(DOWNLOAD_PATH, `${tweet.id_str}.mp4`))) {
+                                payload.push(`视频下载:\n${BASE_URL}${tweet.id_str}.mp4`);
+                            }
+                            else if (down && media[i].video_info.duration_millis < MAX_DURATION) {
+                                let video = await videoDown(tweet.id_str, mp4obj[0].url);
+                                payload.push(video);
+                            }
+                        }
+                        else payload.push(`视频地址: ${mp4obj[0].url}`);
                     }
                 }
             }
         }
         if (pics != "") payload.push(pics);
     }
-    if ("is_quote_status" in tweet && tweet.is_quote_status == true) {
+    if (!end_point && "is_quote_status" in tweet && tweet.is_quote_status == true) {
         let quote_tweet = await getSingleTweet(tweet.quoted_status_id_str);
-        payload.push("引用了", await format(quote_tweet));
+        payload.push("引用了", await format(quote_tweet, true));
         text = text.replace(tweet.quoted_status_permalink.url, "");
     }
     if ("in_reply_to_status_id" in tweet && tweet.in_reply_to_status_id != null && !end_point) {
@@ -725,6 +736,28 @@ async function format(tweet, end_point=false) {
     return payload.join("\n");
 }
 
+async function videoDown(id_str, source) {
+    return new Promise(resolve => {
+        try {
+            axios.get(source, {responseType : "stream"}).then(async video_stream => {
+                const stream_write = fs.createWriteStream(path.join(DOWNLOAD_PATH, `${id_str}.mp4`));
+                video_stream.data.pipe(stream_write);
+                stream_write.on("close", () => {
+                    resolve(`视频下载:\n${BASE_URL}${id_str}.mp4`);
+                });
+                stream_write.on("error", () => {
+                    stream_write.close();
+                    resolve(`视频地址: ${source}\n视频下载失败，重试或联系管理员`);
+                });
+            });
+        }
+        catch(err) {
+            console.error(err);
+            resolve(`视频地址: ${source}\n视频下载失败，重试或联系管理员`);
+        }
+    }) 
+}
+
 /**
  * 将Twitter的t.co短网址扩展为原网址
  * @param {string} twitter_short_url Twitter短网址
@@ -762,7 +795,7 @@ function rtTimeline(context, name, num) {
 
 function rtSingleTweet(tweet_id_str, context) {
     getSingleTweet(tweet_id_str).then(tweet => {
-        format(tweet).then(tweet_string => replyFunc(context, tweet_string))
+        format(tweet, false, true).then(tweet_string => replyFunc(context, tweet_string));
     });
 }
 
@@ -869,6 +902,10 @@ function twitterAggr(context) {
     else if (/^清空(推特|Twitter)订阅$/i.test(context.message)) {
         if (/owner|admin/.test(context.sender.role)) clearSubs(context, context.group_id);
         else replyFunc(context, '您配吗？');
+        return true;
+    }
+    else if (/^尝试重连$/i.test(context.message)) {
+        checkTwiTimeline();
         return true;
     }
     else return false;

@@ -2,7 +2,13 @@
 
 ## 2021
 
-## 01/15 2.9.3
+## 02/06 2.9.5
+* translate:
+  * Feat: 新增视频下载（下载到本地并通过url发送，需要后端服务器如NGINX）
+  * Feat: 更好的断线重连机制
+  * Fix: Twitter更新时无法正确更新数据库
+
+## 02/02 2.9.4
 * translate:
   * Feat: 迁移到Twitter stream提供更低延迟的转发（添加Filtered Stream rule需要手工操作）
   * Feat: config增加twitter部分
