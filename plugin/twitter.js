@@ -3,6 +3,8 @@ const mongodb = require('mongodb').MongoClient;
 const promisify = require('util').promisify;
 const exec = promisify(require('child_process').exec);
 const fs = require('fs-extra');
+const path = require('path');
+const translator = require('./translate');
 
 const PROXY_CONF = global.config.proxy;
 const DB_PORT = 27017;
@@ -24,7 +26,8 @@ const OPTION_MAP = {
     "只看图" : "pic_only",
     "全部" : "all",
     "烤架" : "bbq",
-    "提醒" : "notice"
+    "提醒" : "notice",
+    "翻译" : "translate"
 }
 const POSTTYPE_MAP = {
     "origin_only" : [1, 0, 0, 1],
@@ -92,6 +95,7 @@ function toOptNl(option) {
     }
     if (option.bbq == true) opt_string += "; 需要烤架";
     if (option.notice != undefined) opt_string += "; 更新时提醒:" + option.notice;
+    if (option.translate == true) opt_string += "; 带翻译";
     return opt_string;
 }
 
@@ -440,7 +444,7 @@ function stream(subscribes, options) {
                             for (let group of summ) {
                                 summ_[group.group_id] = group;
                             }
-                            console.log(serialised.includes.users[0].name, serialised)
+
                             const subscribe = subscribes[serialised.includes.users[0].id];
                             retweet(tweet, subscribe, options, summ_);
                             await mongo.close();
@@ -507,8 +511,12 @@ async function retweet(tweet, subscribe, options, summ) {
             if (needPost(status, post)) {
                 let addon = [];
                 if (status != "retweet") {
+                    if (option.translate === true) {
+                        let translated = await translator.translate("auto", "zh", tweet.full_text);
+                        addon.push(`翻译: ${translated}`);
+                    }
                     if (option.notice != undefined) addon.push(`${option.notice}`);
-                    if (option.bbq == true) {
+                    if (option.bbq === true) {
                         count++;
                         addon.push(`序列号: ${count}`);
                         bbq_url = url;
@@ -518,7 +526,7 @@ async function retweet(tweet, subscribe, options, summ) {
 
                 addon.push(url);
                 const context = {group_id : group_id, message_type : "group"};
-                format(tweet, false, status == "origin" ? true : false).then(payload => {
+                format(tweet, false, true).then(payload => {
                     payload += `\n\n${addon.join("\n")}`
                     replyFunc(context, payload);
                 }).catch(err => console.error(err));
@@ -578,6 +586,10 @@ function checkSubs(context) {
         const group_option = mongo.db('bot').collection('group_option');
         let options = await group_option.findOne({group_id : group_id});
         let subs = [];
+        if (options == null) {
+            replyFunc(context, "你一无所有", true);
+            return;
+        }
         for (let sub in options.twitter) {
             let name = options.twitter[sub].name;
             let option_nl = toOptNl(options.twitter[sub]);
@@ -628,6 +640,8 @@ async function format(tweet, end_point = false, down = false) {
     let text = "";
     if('full_text' in tweet) text = tweet.full_text;
     else text = tweet.text;
+    text = text.replace(/&amp;/g, "&").replace(/&#91;/g, "[").replace(/&#93;/g, "]").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+    
     if ("retweeted_status" in tweet) {
         let rt_status = await format(tweet.retweeted_status, true);
         payload.push(`来自${tweet.user.name}的Twitter\n转推了`, rt_status);
@@ -795,7 +809,7 @@ function rtTimeline(context, name, num) {
 
 function rtSingleTweet(tweet_id_str, context) {
     getSingleTweet(tweet_id_str).then(tweet => {
-        format(tweet, false, true).then(tweet_string => replyFunc(context, tweet_string));
+        format(tweet, false, true).then(tweet_string => replyFunc(context, tweet_string))
     });
 }
 
@@ -835,6 +849,7 @@ async function addSub(name, option_nl, context) {
                 }
                 option.notice = people;
             }
+            else if (opt_inter == "translate") option.translate = true;
             else option.post = opt_inter;
         }
     }
@@ -914,4 +929,4 @@ function twitterAggr(context) {
 setAgent();
 firstConnect();
 
-module.exports = {twitterAggr, twitterReply, checkTwiTimeline, clearSubs};
+module.exports = {twitterAggr, twitterReply, checkTwiTimeline, clearSubs, httpHeader, rtSingleTweet};

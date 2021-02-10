@@ -1,15 +1,22 @@
 # 更新日志
 
 ## 2021
+## 02/10 2.9.6
+* Twitter:
+  * Feat: 新增翻译（可选项）
+  * Feat: 对Twitter文字进行转义
+  * Fix: 没有正确触发视频下载
+  * Fix: 查看订阅时对null值处理
 
 ## 02/06 2.9.5
 * translate:
   * Feat: 新增视频下载（下载到本地并通过url发送，需要后端服务器如NGINX）
   * Feat: 更好的断线重连机制
+* Twitter
   * Fix: Twitter更新时无法正确更新数据库
 
 ## 02/02 2.9.4
-* translate:
+* Twitter:
   * Feat: 迁移到Twitter stream提供更低延迟的转发（添加Filtered Stream rule需要手工操作）
   * Feat: config增加twitter部分
 
