@@ -1,6 +1,8 @@
 const puppeteer = require('puppeteer');
 const mongodb = require('mongodb').MongoClient;
 const axios = require('axios');
+const path = require("path");
+const fs = require("fs-extra");
 const marshmallow = require("./marshmallow");
 const twitter = require("./twitter");
 
@@ -10,36 +12,12 @@ const TWEMOJI = "(?:\ud83d\udc68\ud83c\udffb\u200d\ud83e\udd1d\u200d\ud83d\udc68
 const TWEMOJI_REG = new RegExp(TWEMOJI, "g");
 const TWEMOJI_GROUP_REG = new RegExp(`(${TWEMOJI})+`, "g");
 
+const config = require("../config.json").bbq;
+const defaultTemplate = config.defaultTemplate;
+const STORAGEPATH = config.storagePath;
+
 let connection = true;
 
-const defaultTemplate = {
-    article : {
-        css : "",
-        size : 'inherit',
-        color : 'inherit',
-        background : "",
-        font_family : "source-han-serif-sc",
-        text_decoration : ""
-    },
-    group : {
-        group_info : "翻译",
-        css : "",
-        size : '13px',
-        color : 'rgb(27, 149, 224)' ,
-        background : "",
-        font_family : "source-han-serif-sc",
-        text_decoration : "",
-    },
-    in_reply: {
-        logo : "--------------",
-        logo_size : "13px"
-    },
-    extra : {},
-    cover_origin : false,
-    no_group_info : false,
-    cover_origin_in_reply : false,
-    no_group_info_in_reply : false
-}
 
 const BBQ_ARGS = {
     "原推" : "origin",
@@ -73,7 +51,10 @@ const BBQ_ARGS = {
     "article_html" : "article_html",
 }
 
-let replyFunc = (context, msg, at = false) => {};
+if (!fs.existsSync(STORAGEPATH)) fs.mkdir(STORAGEPATH);
+
+// console.log(msg)
+let replyFunc = (context, msg, at = false) => {console.log(msg)};
 
 function cookTweReply(replyMsg) {
     replyFunc = replyMsg;
@@ -143,7 +124,7 @@ async function cook(context, twitter_url, trans_args={}) {
                 if (footer && footer.parentNode) footer.parentNode.removeChild(footer);
                 let header_back = document.querySelector('.css-1dbjc4n .r-1loqt21 .r-136ojw6');
                 if (header_back && header_back.parentNode) header_back.parentNode.removeChild(header_back);
-                
+
                 let articles = document.querySelectorAll('article');
                 let article = articles[0].querySelector('[role=group]').parentElement;
                 insert(article, html_ready.trans_article_html, 
@@ -288,12 +269,16 @@ async function cook(context, twitter_url, trans_args={}) {
             height: Math.round(tweet_box.y + 200),
             deviceScaleFactor: 1.6
         });
+
+        let img_path = path.join(STORAGEPATH, `${tweet_id}.jpg`);
         await page.screenshot({
             type : "jpeg",
             quality : 100,
-            encoding : "base64",
+            path : img_path,
             clip : {x : tweet_box.x - 15, y : -2, width : tweet_box.width + 27, height : tweet_box.y + tweet_box.height + 12}
-        }).then(pic64 => replyFunc(context, `[CQ:image,file=base64://${pic64}]`));
+        }).then(() => {
+            replyFunc(context, `[CQ:image,file=file:///${img_path}]`);
+        });
 
         await browser.close();
     } catch(err) {
@@ -428,7 +413,7 @@ function ensureStructure(trans_args, conversation) {
         throw "args中的回复数量比可用的多";
     }
     if ("reply" in trans_args.article && trans_args.article.reply.length < 1) {
-        trans_args.article.reply = undefined;
+        delete trans_args.article.reply;
     }
 
     return trans_args;
@@ -851,7 +836,7 @@ function setTemplate(unparsed) {
             }
         }
     }
-    
+
     return {trans_args : trans_args, err : err};
 }
 
@@ -908,20 +893,113 @@ function findTemplate(username, group_id) {
     });
 }
 
-function seasoning(context) {
+function storeRecentTranslation(group_id, twitter_url, tweet_id, id, trans_args) {
+    mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
+        let text = trans_args.article.origin;
+        if (text.length > 15) text = text.substring(0, 15);
+        text = text.replace(/<br>/g, "\r\n");
+
+        let coll = mongo.db('bot').collection('twe_sum');
+        try {
+            await coll.updateOne({"group_id" : group_id}, 
+                {$unset : {"today_done" : "", "today_all" : "", "today_raw" : ""}});
+
+            let res = await coll.findOne({"group_id" : group_id, "done.tweet_id" : tweet_id});
+            if (res) {
+                await coll.updateOne({"group_id" : group_id, "done.tweet_id" : tweet_id}, {
+                    $set : {"done.$.twitter_url" : twitter_url, "done.$.id" : id, 
+                    "done.$.trans_args" : trans_args, "done.$.text" : text}}, 
+                    {upsert : true});
+            }
+            else {
+                await coll.updateOne({"group_id" : group_id}, 
+                    {$push : {done : {$each : [{tweet_id, id, trans_args, text, twitter_url}], $slice : -10, $sort : {"tweet_id" : 1}}}});
+            }
+        } catch(err) {console.error(err);
+        } finally {mongo.close();}
+    });
+}
+
+function bbqRisidue(context) {
+    mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
+        let coll = mongo.db('bot').collection('twe_sum');
+        try {
+            let res = await coll.findOne({"group_id" : context.group_id}, {projection : {list : 0}});
+            if (res && "done" in res && res.done.length > 0) {
+                let recent_works = ["最近有烤过这些"];
+                for (let done of res.done) {
+                    let line = [done.id || done.twitter_url, done.text].join(" ".repeat(3));
+                    recent_works.push(line);
+                }
+                replyFunc(context, recent_works.join("\r\n"));
+            }
+            else {
+                replyFunc(context, "此处空无一物");
+            }
+        } catch(err) {console.error(err);
+        } finally {mongo.close();}
+    });
+}
+
+function retriveUrl(group_id, id) {
+    return new Promise((resolve, reject) => {
+        try {
+            mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
+                const twe_sum = mongo.db('bot').collection('twe_sum');
+                const res = await twe_sum.findOne({group_id : group_id}, {projection : {"list" : {$slice : [--id, 1]}, "done" : 0}});
+                mongo.close();
+                resolve(res.list[0] ? /\d{19}/.exec(res.list[0])[0] : false);
+            });
+        }
+        catch(err) {
+            console.error(err);
+            reject(false);
+        }
+    })
+}
+
+async function serve(context) {
+    try {
+        let tweet_id = 0;
+        if (/https:\/\/twitter.com\/.+?\/status\/\d{19}/.test(context.message)) {
+            tweet_id = /\d{19}/.exec(context.message)[0];
+        }
+        else {
+            const group_id = context.group_id;
+            let id = parseInt(/\d{1,4}/.exec(context.message)[0]);
+            if (id == 0) {
+                replyFunc(context, "没有0", true);
+                return;
+            }
+            tweet_id = await retriveUrl(group_id, id);
+        }
+
+        let img_path = path.join(STORAGEPATH, `${tweet_id}.jpg`);
+        fs.access(img_path, fs.constants.F_OK, err => {
+            let text = err ? "不存在" : `[CQ:image,file=file:///${img_path}]`
+            replyFunc(context, text);
+        });
+    }
+    catch(err) {
+        console.error(err);
+        replyFunc(context, "出错惹", true);
+    }
+}
+
+function seasoning(context, id = "") {
     let raw = context.message.replace(/\r\n|\n/g, "<br>");
     try {
-        let {groups : {twitter_url, username}} = /(?<twitter_url>https:\/\/twitter.com\/(?<username>.+?)\/status\/\d+)(?:\?s=\d{1,2})?/i.exec(raw);
+        let {groups : {twitter_url, username, tweet_id}} = /(?<twitter_url>https:\/\/twitter\.com\/(?<username>.+?)\/status\/(?<tweet_id>\d+))(?:\?s=\d{1,2})?/i.exec(raw);
         let text_index = /https:\/\/twitter\.com\/\w+?\/status\/\d+(?:\?s=\d{1,2})?/.exec(raw);
         let text = raw.substring(text_index.index + text_index[0].length);
 
         findTemplate(username, context.group_id).then(async saved_trans_args => {
             if (!saved_trans_args) saved_trans_args = Object.create(defaultTemplate);
-
             if (/^(\s|[>＞]{2}|<br>)/.test(text)) {
                 let starter = /^(\s|[>＞]{2}|<br>)/.exec(text);
                 text = text.substring(starter[1].length).trim().replace(/^<br>/, "");
                 saved_trans_args.article.origin = text;
+                storeRecentTranslation(context.group_id, twitter_url, tweet_id, id, saved_trans_args);
                 cook(context, twitter_url, saved_trans_args);
             }
             else if (/^[>＞]/.test(text)) {
@@ -957,7 +1035,10 @@ function seasoning(context) {
                     }
                     else serialTweet(context, twitter_url, trans_args);
                 }
-                else cook(context, twitter_url, trans_args);
+                else {
+                    storeRecentTranslation(context.group_id, twitter_url, tweet_id, id, trans_args);
+                    cook(context, twitter_url, trans_args);
+                }
             }
             else {
                 replyFunc(context, "语法错误");
@@ -973,7 +1054,7 @@ function seasoning(context) {
 function prepare(context) {
     try {
         const group_id = context.group_id;
-        const num = /\d{1,3}/.exec(context.message)[0];
+        const num = parseInt(/\d{1,4}/.exec(context.message)[0]);
         if (num == 0) {
             replyFunc(context, "不要乱搞啊这从1开始计数的", true);
             return;
@@ -988,7 +1069,7 @@ function prepare(context) {
                 let twitter_url = summ.list[num - 1];
                 context.message = context.message.replace(num, twitter_url);
                 if (/^(Twitter|推特)?截图/i.test(context.message)) cook(context, twitter_url);
-                else seasoning(context);
+                else seasoning(context, num);
             }
             mongo.close();
         });
@@ -1005,7 +1086,7 @@ function complex(context) {
         cook(context, twitter_url);
         return true;
     }
-    else if (connection && /^(推特|Twitter)截图\s?\d{1,3}/i.test(context.message)) {
+    else if (connection && /^(推特|Twitter)截图\s?\d{1,4}/i.test(context.message)) {
         prepare(context);
         return true;
     }
@@ -1013,7 +1094,7 @@ function complex(context) {
         seasoning(context);
         return true;
     }
-    else if (connection && /^烤制\s?\d{1,3}([>＞]{1,2}|\s|\r\n)/i.test(context.message)) {
+    else if (connection && /^烤制\s?\d{1,4}([>＞]{1,2}|\s|\r\n)/i.test(context.message)) {
         prepare(context);
         return true;
     }
@@ -1021,6 +1102,14 @@ function complex(context) {
         let plain = context.message.replace(/\r\n/g, "");
         let {groups : {username, unparsed}} = /https:\/\/twitter.com\/(?<username>.+?)(?:\/status\/\d+)?[>＞](?<unparsed>.+)/.exec(plain);
         saveTemplate(context, username, unparsed);
+        return true;
+    }
+    else if (/^#(\d{1,4}|https:\/\/twitter.com\/.+?\/status\/\d{19}(?:\?s=\d{1,2})?)/.test(context.message)) {
+        serve(context);
+        return true;
+    }
+    else if (/^#$/.test(context.message)) {
+        bbqRisidue(context);
         return true;
     }
     else return false;
