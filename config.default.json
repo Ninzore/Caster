@@ -32,5 +32,36 @@
             "secretKey": "",
             "region": "ap-shanghai"
           }
+    },
+    "bbq": {
+        "storagePath": "data/tweBBQ",
+        "defaultTemplate": {
+            "article" : {
+                "css" : "",
+                "size" : "inherit",
+                "color" : "inherit",
+                "background" : "",
+                "font_family" : "source-han-serif-sc",
+                "text_decoration" : ""
+            },
+            "group" : {
+                "group_info" : "翻译",
+                "css" : "",
+                "size" : "13px",
+                "color" : "rgb(27, 149, 224)" ,
+                "background" : "",
+                "font_family" : "source-han-serif-sc",
+                "text_decoration" : ""
+            },
+            "in_reply": {
+                "logo" : "--------------",
+                "logo_size" : "13px"
+            },
+            "extra" : {},
+            "cover_origin" : false,
+            "no_group_info" : false,
+            "cover_origin_in_reply" : false,
+            "no_group_info_in_reply" : false
+        }
     }
 }
