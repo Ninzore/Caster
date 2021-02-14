@@ -2,6 +2,14 @@
 
 ## 2021
 
+## 02/14 3.0.0
+* Twitter:
+  * Feat: 添加烤推历史记录
+  * Feat: 烤推默认模板移动到config file
+  * Feat: 现在烤过的推会保存为本地文件
+  * Fix: 原推的回复和引用结构错误
+  * Fix: 无法处理3位以上序列号
+
 ## 02/13 2.9.7
 * Bilibili:
   * Feat: 跟进Wecab
@@ -11,7 +19,7 @@
   * Feat: 新增翻译（可选项）
   * Feat: 对Twitter文字进行转义
   * Fix: 没有正确触发视频下载
-  * Fix: 查看订阅时对null值处理
+  * Fix: 查看订阅时对null值未处理
 
 ## 02/06 2.9.5
 * Twitter:

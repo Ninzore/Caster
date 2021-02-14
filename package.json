@@ -1,6 +1,6 @@
 {
   "name": "caster",
-  "version": "2.9.7",
+  "version": "3.0.0",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
