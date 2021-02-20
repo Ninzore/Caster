@@ -180,7 +180,10 @@ async function cook(context, twitter_url, trans_args={}) {
                     let poster = false;
                     if (video.querySelector('[poster]') != null) poster = video.querySelector('[poster]').poster;
                     else poster = conversation.poster;
-                    if (poster) video.firstChild.lastChild.innerHTML = `<img style="max-height:100%; max-width:100%" src="${poster}">`;
+                    if (poster) {
+                        video.firstChild.lastChild.style = "width: 100%; height: 100%; background-color: transparent; overflow: hidden;";
+                        video.firstChild.lastChild.innerHTML = `<video style="background-color: black; height:100%; width:100%; max-height:100%; max-width:100%" poster="${poster}"></video>`;
+                    }
                 }
 
                 if (trans_args.article.quote != undefined) {
@@ -973,7 +976,7 @@ async function serve(context) {
             }
             tweet_id = await retriveUrl(group_id, id);
         }
-
+        
         let img_path = path.join(STORAGEPATH, `${tweet_id}.jpg`);
         fs.access(img_path, fs.constants.F_OK, err => {
             let text = err ? "不存在" : `[CQ:image,file=file:///${img_path}]`
