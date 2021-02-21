@@ -44,10 +44,21 @@ let axios = false;
 let guest_token = "";
 let cookie = "";
 let connection = true;
+let inStream = false;
+let options = {};
+let subscribes = {};
 let replyFunc = (context, msg, at = false) => {};
 
 function twitterReply(replyMsg) {
     replyFunc = replyMsg;
+
+    mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(mongo => {
+        let coll = mongo.db('bot').collection('twe_sum');
+        try {
+            coll.updateOne({}, {$unset : {"today_done" : "", "today_all" : "", "today_raw" : ""}})
+                .then((err, res) => {mongo.close()});
+        } catch(err) {console.error(err);}
+    });
 }
 
 /** 检查网络情况，如果连不上Twitter那后面都不用做了*/
@@ -122,8 +133,8 @@ function sizeCheck(url) {
     return axios.get(url).then(res => {
         return parseInt(res.headers["content-length"]) < MAX_SIZE ? true : false;
     }).catch(err => {
-        console.error(url, err.response.status);
-        return false;
+        // console.error(url, err);
+        return true;
     });
 }
 
@@ -159,7 +170,8 @@ function getGuestToken() {
         method : "POST",
         url : "https://api.twitter.com/1.1/guest/activate.json",
         headers : headers
-    }).then(res => {guest_token = res.data.guest_token;}).catch(err => console.log(err.response.data))
+    }).then(res => {guest_token = res.data.guest_token;}
+    ).catch(err => console.error("Twitter getGuestToken error ", err.response.status, err.response.statusText))
 }
 
 /** 获取一个cookie，后面要用*/
@@ -215,7 +227,7 @@ function getSingleTweet(tweet_id_str) {
         }
     }).then(res => {return res.data; 
     }).catch(err => {
-        console.error(err.response.data);
+        console.error("twitter getSingleTweet error: ", tweet_id_str, err.response.status, err.response.statusText);
         return false;
     });
 }
@@ -243,7 +255,7 @@ function getUserTimeline(user_id, count = 2, include_rt = false, exclude_rp = tr
         }
     }).then(res => {return res.data;
     }).catch(err => {
-        console.error(err.response.data);
+        console.error("twitter getUserTimeline error: ", err.response.status, err.response.statusText);
         return false;
     });
 }
@@ -269,7 +281,7 @@ function searchUser(name) {
         }
     }).then(res => {return res.data[0]
     }).catch(err => {
-        console.error("Twitter searchUser error\n" + err.response.data);
+        console.error("Twitter searchUser error\n", err.response.status, err.response.statusText);
         return false;
     })
 }
@@ -308,7 +320,7 @@ function subscribe(user, option, context) {
                 const twe_sum = mongo.db('bot').collection('twe_sum');
                 await twe_sum.updateOne({group_id : context.group_id}, 
                     {$setOnInsert : {count : 0, count_done : 0, list : [], 
-                    today_all : [], today_raw : [], today_done : []}},
+                    rare : [], done : []}},
                     {upsert : true});
             }
             replyFunc(context, `已订阅${name}的Twitter，模式为${option_nl}`, true);
@@ -318,6 +330,7 @@ function subscribe(user, option, context) {
         }
         finally {
             mongo.close();
+            setTimeout(checkTwiTimeline, 200);
         }
     }).catch(err => console.error(err + "\nTwitter subscribe error, username= " + username));
 }
@@ -360,10 +373,12 @@ function unSubscribe(name, context) {
                         });
                     }
                     replyFunc(context, text, true);
+                    setTimeout(checkTwiTimeline, 200);
                 }
         });
     }).catch(err => console.error(err + "Twitter unsubscribe error, uid= " + uid));
 }
+
 
 /**
  * 每过x分钟检查一次订阅列表，如果订阅一个Twitter账号的群的数量是0就删除
@@ -374,17 +389,15 @@ function checkTwiTimeline() {
     mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
         const twitter_db = mongo.db('bot').collection('twitter');
         const group_option = mongo.db('bot').collection('group_option');
-        const subscribes = await twitter_db.find({}).toArray();
-        const options = await group_option.find({}).toArray();
+        const subscribes_ = await twitter_db.find({}).toArray();
+        const options_ = await group_option.find({}).toArray();
 
-        let subscribes_ = {};
-        for (let user of subscribes) {
-            subscribes_[user.uid] = user;
+        for (let user of subscribes_) {
+            subscribes[user.uid] = user;
         }
 
-        let options_ = {};
-        for (let group of options) {
-            options_[group.group_id] = group.twitter;
+        for (let group of options_) {
+            options[group.group_id] = group.twitter;
         }
 
         // if (subscribes.length > 0 && options.length > 0) {
@@ -398,16 +411,16 @@ function checkTwiTimeline() {
         //     subscribes = await twitter_db.find({}).toArray();
         //     subscribes != undefined ? checkEach() : console.error("twitter database error");
         // }
-
-        stream(subscribes_, options_);
+        if (!inStream) stream();
         await mongo.close();
     });
 }
 
 let stream_retry = 0;
-function stream(subscribes, options) {
+function stream() {
     let time = new Date();
     console.log("Twitter stream 开始连接", time.getHours(), time.getMinutes());
+    inStream = true;
 
     axios({
         url : "https://api.twitter.com/2/tweets/search/stream",
@@ -471,13 +484,14 @@ function stream(subscribes, options) {
 function retry(err, subscribes, options) {
     let time = new Date();
     console.error(time.getHours(), time.getMinutes());
-    if (typeof err === "object") console.error("Twitter Stream connection failed with code ", err.response.status);
+    if (typeof err === "object" && "response" in err) console.error("Twitter Stream connection failed with code ", err.response.status);
     else console.error(err);
     
     if (stream_retry < 4) {
         stream_retry ++;
-        setTimeout(() => stream(subscribes, options), 15000);
+        setTimeout(() => stream(), 15000);
     } else {
+        inStream = false;
         console.error("Twitter stream disconnected and out of retry times 彻底断线");
         replyFunc({user_id: global.config.bot.admin, message_type : "private"}, "Twitter stream 断线");
     }
@@ -485,6 +499,14 @@ function retry(err, subscribes, options) {
 
 async function retweet(tweet, subscribe, options, summ) {
     try {
+        if (!tweet) {
+            for (let group_id of groups) {
+                replyFunc({group_id : group_id, message_type : "group"}, "Twitter转发时出错");
+            }
+            return;
+        }
+
+        if (!subscribe) throw `https://twitter.com/${tweet.user.screen_name}/status/${tweet.id_str}`;
         const groups = subscribe.groups;
         let bbq_group = [];
         const url = `https://twitter.com/${tweet.user.screen_name}/status/${tweet.id_str}`;
@@ -522,7 +544,7 @@ async function retweet(tweet, subscribe, options, summ) {
                         bbq_url = url;
                     }
                 }
-                updateTwitter(tweet, bbq_group, bbq_url, subscribe);
+                updateTwitter(tweet, bbq_group, bbq_url, subscribe, count);
 
                 addon.push(url);
                 const context = {group_id : group_id, message_type : "group"};
@@ -559,7 +581,7 @@ function needPost(status, option) {
     return false;
 }
 
-function updateTwitter(tweet, bbq_group, url, subscribe) {
+function updateTwitter(tweet, bbq_group, url, subscribe, count) {
     mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
         const twitter_db = mongo.db('bot').collection('twitter');
         await twitter_db.updateOne({_id : subscribe._id},
@@ -569,10 +591,28 @@ function updateTwitter(tweet, bbq_group, url, subscribe) {
             const twe_sum = mongo.db('bot').collection('twe_sum');
             for (let group_id of bbq_group) {
                 await twe_sum.updateOne({group_id : group_id}, 
-                    {$inc : {count : 1}, $push : {list : url}})
+                    {$inc : {count : 1}, $push : {list : url}});
             }
+            storeRecentTwitter(bbq_group[0], url, count, tweet.id_str, tweet.full_text || tweet.text);
         }
         mongo.close();
+    });
+}
+
+function storeRecentTwitter(group_id, twitter_url, id, tweet_id, text) {
+    mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
+        if (text.length > 14) text = text.substring(0, 14);
+        text = text.replace(/\n/g, " ");
+
+        let coll = mongo.db('bot').collection('twe_sum');
+        try {
+            await coll.updateOne({"group_id" : group_id}, 
+                {$push : {rare : {$each : [{tweet_id, id, text, twitter_url}], 
+                $slice : -10, 
+                $sort : {"tweet_id" : 1}}}},
+                {upsert : true});
+            mongo.close();
+        } catch(err) {console.error(err);}
     });
 }
 
@@ -636,118 +676,127 @@ function clearSubs(context, group_id) {
  * @returns Promise  排列完成的Tweet String
  */
 async function format(tweet, end_point = false, down = false) {
+    if (!tweet) return "Twitter转发时错误";
     let payload = [];
     let text = "";
     if('full_text' in tweet) text = tweet.full_text;
     else text = tweet.text;
     text = text.replace(/&amp;/g, "&").replace(/&#91;/g, "[").replace(/&#93;/g, "]").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+
+    try {
+        if ("retweeted_status" in tweet) {
+            let rt_status = await format(tweet.retweeted_status, true);
+            payload.push(`来自${tweet.user.name}的Twitter\n转推了`, rt_status);
+            return payload.join("\n");
+        }
+        let pics = "";
+        let src = "";
+        if ("extended_entities" in tweet) {
+            for (entity in tweet.extended_entities) {
+                if (entity == "media") {
+                    let media = tweet.extended_entities.media;
+                    for (let i = 0; i < media.length; i++) {
+                        text = text.replace(media[i].url, "");
+                        if (media[i].type == "photo") {
+                            src = [media[i].media_url_https.substring(0, media[i].media_url_https.length-4),
+                                `?format=${media[i].media_url_https.substring(media[i].media_url_https.length-3, media[i].media_url_https.length)}&name=4096x4096`].join("");
+                            pics += await sizeCheck(src) ? `[CQ:image,cache=0,file=${src}]` : `[CQ:image,cache=0,file=${media[i].media_url_https}] 注：这不是原图`;
+                        }
+                        else if (media[i].type == "animated_gif") {
+                            try {
+                                await exec(`ffmpeg -i ${media[i].video_info.variants[0].url} -loop 0 -y ${__dirname}/temp.gif`)
+                                    .then(async ({stdout, stderr}) => {
+                                        if (stdout.length == 0) {
+                                            if (fs.statSync(`${__dirname}/temp.gif`).size < MAX_SIZE) {
+                                                let gif = fs.readFileSync(`${__dirname}/temp.gif`);
+                                                let base64gif = Buffer.from(gif, 'binary').toString('base64');
+                                                pics += `[CQ:image,file=base64://${base64gif}]`;
+                                            }
+                                            else pics += `这是一张动图 [CQ:image,cache=0,file=${media[i].media_url_https}]` + `动起来看这里${media[i].video_info.variants[0].url}`;
+                                        }
+                                    })
+                            } catch(err) {
+                                console.error(err);
+                                pics += `这是一张动图 [CQ:image,cache=0,file=${media[i].media_url_https}]` + `动起来看这里${media[i].video_info.variants[0].url}`;
+                            }
+                        }
+                        else if (media[i].type == "video") {
+                            let mp4obj = [];
+                            for (let j = 0; j < media[i].video_info.variants.length; j++) {
+                                if (media[i].video_info.variants[j].content_type == "video/mp4") mp4obj.push(media[i].video_info.variants[j]);
+                            }
+                            mp4obj.sort((a, b) => {return b.bitrate - a.bitrate;});
+                            payload.push(`[CQ:image,cache=0,file=${media[i].media_url_https}]`);
     
-    if ("retweeted_status" in tweet) {
-        let rt_status = await format(tweet.retweeted_status, true);
-        payload.push(`来自${tweet.user.name}的Twitter\n转推了`, rt_status);
+                            if (down) {
+                                if (fs.existsSync(path.join(DOWNLOAD_PATH, `${tweet.id_str}.mp4`))) {
+                                    payload.push(`视频下载:\n${BASE_URL}${tweet.id_str}.mp4`);
+                                }
+                                else if (down && media[i].video_info.duration_millis < MAX_DURATION) {
+                                    let video = await videoDown(tweet.id_str, mp4obj[0].url);
+                                    payload.push(video);
+                                }
+                            }
+                            else payload.push(`视频地址: ${mp4obj[0].url}`);
+                        }
+                    }
+                }
+            }
+            if (pics != "") payload.push(pics);
+        }
+        if (!end_point && "is_quote_status" in tweet && tweet.is_quote_status == true) {
+            let quote_tweet = await getSingleTweet(tweet.quoted_status_id_str);
+            payload.push("引用了", await format(quote_tweet, true));
+            text = text.replace(tweet.quoted_status_permalink.url, "");
+        }
+        if ("in_reply_to_status_id" in tweet && tweet.in_reply_to_status_id != null && !end_point) {
+            let reply_tweet = await getSingleTweet(tweet.in_reply_to_status_id_str);
+            payload.push("回复了", await format(reply_tweet, true));
+        }
+        if ("card" in tweet) {
+            // payload.push(tweet.binding_values.title.string_value, urlExpand(card.url));
+            if (/poll\dchoice/.test(tweet.card.name)) {
+                if ("image_large" in tweet.card.binding_values) {
+                    payload.push(`[CQ:image,cache=0,file=${tweet.card.binding_values.image_large.url}]`);
+                }
+    
+                let end_time = new Intl.DateTimeFormat('zh-Hans-CN', {month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai'})
+                    .format(new Date(tweet.card.binding_values.end_datetime_utc.string_value))
+                payload.push("", tweet.card.binding_values.counts_are_final.boolean_value === true ? "投票已结束" 
+                    : `正在投票,结束时间${end_time}`);
+                let nchoice = parseInt(/\d/.exec(tweet.card.name)[0]);
+                let count = "";
+                let lable = "";
+                for (i = 1; i < nchoice + 1; i++) {
+                    lable = tweet.card.binding_values[`choice${i}_label`].string_value;
+                    count = tweet.card.binding_values[`choice${i}_count`].string_value;
+                    payload.push(`${lable}:  ${count}`);
+                }
+            }
+            else if (/summary/.test(tweet.card.name)) {
+                if ("photo_image_full_size_original" in tweet.card.binding_values) {
+                    if (sizeCheck(tweet.card.binding_values.photo_image_full_size_original.image_value.url)) {
+                        payload.push(`[CQ:image,cache=0,file=${tweet.card.binding_values.photo_image_full_size_original.image_value.url}]`);
+                    }
+                    else payload.push(`[CQ:image,cache=0,file=${tweet.card.binding_values.photo_image_full_size_large.image_value.url}]`);
+                }
+                if ("title" in tweet.card.binding_values) payload.push(tweet.card.binding_values.title.string_value)
+                if ("description" in tweet.card.binding_values) payload.push(tweet.card.binding_values.description.string_value);
+            }
+        }
+        if ("urls" in tweet.entities && tweet.entities.urls.length > 0) {
+            for (let i = 0; i <  tweet.entities.urls.length; i++) {
+                text = text.replace(tweet.entities.urls[i].url, tweet.entities.urls[i].expanded_url);
+            }
+        }
+        payload.unshift(`${tweet.user.name}的Twitter`, text);
         return payload.join("\n");
     }
-    let pics = "";
-    let src = "";
-    if ("extended_entities" in tweet) {
-        for (entity in tweet.extended_entities) {
-            if (entity == "media") {
-                let media = tweet.extended_entities.media;
-                for (let i = 0; i < media.length; i++) {
-                    text = text.replace(media[i].url, "");
-                    if (media[i].type == "photo") {
-                        src = [media[i].media_url_https.substring(0, media[i].media_url_https.length-4),
-                            `?format=${media[i].media_url_https.substring(media[i].media_url_https.length-3, media[i].media_url_https.length)}&name=4096x4096`].join("");
-                        pics += await sizeCheck(src) ? `[CQ:image,cache=0,file=${src}]` : `[CQ:image,cache=0,file=${media[i].media_url_https}] 注：这不是原图`;
-                    }
-                    else if (media[i].type == "animated_gif") {
-                        try {
-                            await exec(`ffmpeg -i ${media[i].video_info.variants[0].url} -loop 0 -y ${__dirname}/temp.gif`)
-                                .then(async ({stdout, stderr}) => {
-                                    if (stdout.length == 0) {
-                                        if (fs.statSync(`${__dirname}/temp.gif`).size < MAX_SIZE) {
-                                            let gif = fs.readFileSync(`${__dirname}/temp.gif`);
-                                            let base64gif = Buffer.from(gif, 'binary').toString('base64');
-                                            pics += `[CQ:image,file=base64://${base64gif}]`;
-                                        }
-                                        else pics += `这是一张动图 [CQ:image,cache=0,file=${media[i].media_url_https}]` + `动起来看这里${media[i].video_info.variants[0].url}`;
-                                    }
-                                })
-                        } catch(err) {
-                            console.error(err);
-                            pics += `这是一张动图 [CQ:image,cache=0,file=${media[i].media_url_https}]` + `动起来看这里${media[i].video_info.variants[0].url}`;
-                        }
-                    }
-                    else if (media[i].type == "video") {
-                        let mp4obj = [];
-                        for (let j = 0; j < media[i].video_info.variants.length; j++) {
-                            if (media[i].video_info.variants[j].content_type == "video/mp4") mp4obj.push(media[i].video_info.variants[j]);
-                        }
-                        mp4obj.sort((a, b) => {return b.bitrate - a.bitrate;});
-                        payload.push(`[CQ:image,cache=0,file=${media[i].media_url_https}]`);
-
-                        if (down) {
-                            if (fs.existsSync(path.join(DOWNLOAD_PATH, `${tweet.id_str}.mp4`))) {
-                                payload.push(`视频下载:\n${BASE_URL}${tweet.id_str}.mp4`);
-                            }
-                            else if (down && media[i].video_info.duration_millis < MAX_DURATION) {
-                                let video = await videoDown(tweet.id_str, mp4obj[0].url);
-                                payload.push(video);
-                            }
-                        }
-                        else payload.push(`视频地址: ${mp4obj[0].url}`);
-                    }
-                }
-            }
-        }
-        if (pics != "") payload.push(pics);
+    catch (err) {
+        console.error(new Date.toString(), err);
+        payload.push(`${tweet.user.name}的Twitter`, text);
+        return payload.join("\n");
     }
-    if (!end_point && "is_quote_status" in tweet && tweet.is_quote_status == true) {
-        let quote_tweet = await getSingleTweet(tweet.quoted_status_id_str);
-        payload.push("引用了", await format(quote_tweet, true));
-        text = text.replace(tweet.quoted_status_permalink.url, "");
-    }
-    if ("in_reply_to_status_id" in tweet && tweet.in_reply_to_status_id != null && !end_point) {
-        let reply_tweet = await getSingleTweet(tweet.in_reply_to_status_id_str);
-        payload.push("回复了", await format(reply_tweet, true));
-    }
-    if ("card" in tweet) {
-        // payload.push(tweet.binding_values.title.string_value, urlExpand(card.url));
-        if (/poll\dchoice/.test(tweet.card.name)) {
-            if ("image_large" in tweet.card.binding_values) {
-                payload.push(`[CQ:image,cache=0,file=${tweet.card.binding_values.image_large.url}]`);
-            }
-
-            let end_time = new Intl.DateTimeFormat('zh-Hans-CN', {month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai'})
-                .format(new Date(tweet.card.binding_values.end_datetime_utc.string_value))
-            payload.push("", tweet.card.binding_values.counts_are_final.boolean_value === true ? "投票已结束" 
-                : `正在投票,结束时间${end_time}`);
-            let nchoice = parseInt(/\d/.exec(tweet.card.name)[0]);
-            let count = "";
-            let lable = "";
-            for (i = 1; i < nchoice + 1; i++) {
-                lable = tweet.card.binding_values[`choice${i}_label`].string_value;
-                count = tweet.card.binding_values[`choice${i}_count`].string_value;
-                payload.push(`${lable}:  ${count}`);
-            }
-        }
-        else if (/summary/.test(tweet.card.name)) {
-            if ("photo_image_full_size_original" in tweet.card.binding_values) {
-                if (sizeCheck(tweet.card.binding_values.photo_image_full_size_original.image_value.url)) {
-                    payload.push(`[CQ:image,cache=0,file=${tweet.card.binding_values.photo_image_full_size_original.image_value.url}]`);
-                }
-                else payload.push(`[CQ:image,cache=0,file=${tweet.card.binding_values.photo_image_full_size_large.image_value.url}]`);
-            }
-            payload.push(tweet.card.binding_values.title.string_value, tweet.card.binding_values.description.string_value);
-        }
-    }
-    if ("urls" in tweet.entities && tweet.entities.urls.length > 0) {
-        for (let i = 0; i <  tweet.entities.urls.length; i++) {
-            text = text.replace(tweet.entities.urls[i].url, tweet.entities.urls[i].expanded_url);
-        }
-    }
-    payload.unshift(`${tweet.user.name}的Twitter`, text);
-    return payload.join("\n");
 }
 
 async function videoDown(id_str, source) {
@@ -785,7 +834,7 @@ function urlExpand(twitter_short_url) {
     }).then(res => {
         return /URL=(http.+?)">/.exec(res.data)[1];
     }).catch(err => {
-        console.error(err.response.data);
+        console.error("twitter urlExpand error: ", err.response.status, err.response.statusText);
         return false;
     });
 }
@@ -809,7 +858,7 @@ function rtTimeline(context, name, num) {
 
 function rtSingleTweet(tweet_id_str, context) {
     getSingleTweet(tweet_id_str).then(tweet => {
-        format(tweet, false, true).then(tweet_string => replyFunc(context, tweet_string))
+        format(tweet, false, true).then(tweet_string => replyFunc(context, tweet_string));
     });
 }
 

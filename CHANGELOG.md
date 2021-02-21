@@ -2,12 +2,23 @@
 
 ## 2021
 
-## 02/20 3.0.1
+## 02/21 3.0.5
 * Twitter:
+  * Feat: 新增未烤制内容队列
+  * Feat: 更多的报错内容
+  * Feat: 更新重连逻辑，现在会在掉线后尝试重连3次，如全部失败会断线
+  * Fix: 新增订阅后订阅列表未刷新
+  * Fix: Twitter `card`内容中可能没有`description`字段导致错误
+  * Chore: 数据库`bot.twe_sum`字段变化（已完成后向兼容无需手动更新）  
+    由 `{count : 0, count_done : 0, list : [], today_all : [], today_raw : [], today_done : []}`  
+    变为 `{count : 0, count_done : 0, list : [], rare : [], done : []}`
+
+## 02/20 3.0.1
+* tweBBQ:
   * Fix: 视频封面css错误
 
 ## 02/14 3.0.0
-* Twitter:
+* tweBBQ:
   * Feat: 添加烤推历史记录
   * Feat: 烤推默认模板移动到config file
   * Feat: 现在烤过的推会保存为本地文件
