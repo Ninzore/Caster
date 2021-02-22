@@ -609,10 +609,10 @@ async function setupHTML(trans_args, conversation) {
         else {
             html_ready.trans_group_html = (trans_args.group_html == undefined) ? 
                 ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0"',
-                ' style="display: block; margin: 0px 0px 3px 1px;">', 
+                ' style="display: block; margin: 2px 0px 3px 1px;">', 
                 decoration(trans_args.group.group_info, trans_args.group), '</div>'].join("")
                 : ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0;" ',
-                    'style="margin: 0px 0px 4px 1px; display: block;">',
+                    'style="margin: 2px 0px 4px 1px; display: block;">',
                      trans_args.group_html, '</div>'].join("");
         }
     }
@@ -899,14 +899,11 @@ function findTemplate(username, group_id) {
 function storeRecentTranslation(group_id, twitter_url, tweet_id, id, trans_args) {
     mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
         let text = trans_args.article.origin;
-        if (text.length > 15) text = text.substring(0, 15);
-        text = text.replace(/<br>/g, "\r\n");
+        if (text.length > 14) text = text.substring(0, 14);
+        text = text.replace(/<br>/g, " ");
 
         let coll = mongo.db('bot').collection('twe_sum');
         try {
-            await coll.updateOne({"group_id" : group_id}, 
-                {$unset : {"today_done" : "", "today_all" : "", "today_raw" : ""}});
-
             let res = await coll.findOne({"group_id" : group_id, "done.tweet_id" : tweet_id});
             if (res) {
                 await coll.updateOne({"group_id" : group_id, "done.tweet_id" : tweet_id}, {
@@ -916,8 +913,12 @@ function storeRecentTranslation(group_id, twitter_url, tweet_id, id, trans_args)
             }
             else {
                 await coll.updateOne({"group_id" : group_id}, 
-                    {$push : {done : {$each : [{tweet_id, id, trans_args, text, twitter_url}], $slice : -10, $sort : {"tweet_id" : 1}}}});
+                    {$push : {done : {$each : [{tweet_id, id, trans_args, text, twitter_url}], 
+                    $slice : -10, $sort : {"tweet_id" : 1}}}});
             }
+
+            await coll.updateOne({"group_id" : group_id}, 
+                    {$pull : {rare : {"tweet_id" : tweet_id}}});
         } catch(err) {console.error(err);
         } finally {mongo.close();}
     });
@@ -928,19 +929,37 @@ function bbqRisidue(context) {
         let coll = mongo.db('bot').collection('twe_sum');
         try {
             let res = await coll.findOne({"group_id" : context.group_id}, {projection : {list : 0}});
+            mongo.close();
+            let summary = [];
+
+            if (res && "rare" in res && res.rare.length > 0) {
+                let recent_rare = ["米"];
+                for (let rare of res.rare) {
+                    let line = [rare.id || rare.twitter_url, rare.text].join(" ".repeat(3));
+                    recent_rare.push(line);
+                }
+                summary.push(recent_rare.join("\n"));
+            }
+            else {
+                summary.push("没米了");
+            }
+            
             if (res && "done" in res && res.done.length > 0) {
-                let recent_works = ["最近有烤过这些"];
+                let recent_done = ["锅巴"];
+                
                 for (let done of res.done) {
                     let line = [done.id || done.twitter_url, done.text].join(" ".repeat(3));
-                    recent_works.push(line);
+                    recent_done.push(line);
                 }
-                replyFunc(context, recent_works.join("\r\n"));
+
+                summary.push(recent_done.join("\n"));
             }
             else {
                 replyFunc(context, "此处空无一物");
             }
-        } catch(err) {console.error(err);
-        } finally {mongo.close();}
+
+            replyFunc(context, summary.join("\n".repeat(2)))
+        } catch(err) {console.error(err);}
     });
 }
 
@@ -952,41 +971,50 @@ function retriveUrl(group_id, id) {
                 const res = await twe_sum.findOne({group_id : group_id}, {projection : {"list" : {$slice : [--id, 1]}, "done" : 0}});
                 mongo.close();
                 resolve(res.list[0] ? /\d{19}/.exec(res.list[0])[0] : false);
+                return;
             });
         }
         catch(err) {
             console.error(err);
             reject(false);
+            return;
         }
     })
 }
 
-async function serve(context) {
-    try {
-        let tweet_id = 0;
-        if (/https:\/\/twitter.com\/.+?\/status\/\d{19}/.test(context.message)) {
-            tweet_id = /\d{19}/.exec(context.message)[0];
-        }
-        else {
-            const group_id = context.group_id;
-            let id = parseInt(/\d{1,4}/.exec(context.message)[0]);
-            if (id == 0) {
-                replyFunc(context, "没有0", true);
-                return;
-            }
-            tweet_id = await retriveUrl(group_id, id);
-        }
-        
-        let img_path = path.join(STORAGEPATH, `${tweet_id}.jpg`);
-        fs.access(img_path, fs.constants.F_OK, err => {
-            let text = err ? "不存在" : `[CQ:image,file=file:///${img_path}]`
-            replyFunc(context, text);
-        });
+async function serveDone(context) {
+    let tweet_id = 0;
+    if (/https:\/\/twitter.com\/.+?\/status\/\d{19}/.test(context.message)) {
+        tweet_id = /\d{19}/.exec(context.message)[0];
     }
-    catch(err) {
-        console.error(err);
-        replyFunc(context, "出错惹", true);
+    else {
+        const group_id = context.group_id;
+        let id = parseInt(/\d{1,4}/.exec(context.message)[0]);
+        if (id == 0) {
+            replyFunc(context, "没有0", true);
+            return;
+        }
+        tweet_id = await retriveUrl(group_id, id);
     }
+    
+    let img_path = path.join(STORAGEPATH, `${tweet_id}.jpg`);
+    fs.access(img_path, fs.constants.F_OK, err => {
+        let text = err ? "锅里没有这片锅巴" : `[CQ:image,file=file:///${img_path}]`
+        replyFunc(context, text);
+    });
+    return;
+}
+
+async function serveRare(context) {
+    const group_id = context.group_id;
+    let id = parseInt(/\d{1,4}/.exec(context.message)[0]);
+    if (id == 0) {
+        replyFunc(context, "没有0", true);
+        return;
+    }
+    tweet_id = await retriveUrl(group_id, id);
+    if (!tweet_id) replyFunc(context, "没有这条推", true);
+    else twitter.rtSingleTweet(tweet_id, context);
 }
 
 function seasoning(context, id = "") {
@@ -1107,11 +1135,15 @@ function complex(context) {
         saveTemplate(context, username, unparsed);
         return true;
     }
-    else if (/^#(\d{1,4}|https:\/\/twitter.com\/.+?\/status\/\d{19}(?:\?s=\d{1,2})?)/.test(context.message)) {
-        serve(context);
+    else if (/^(来把)?米\d{1,4}$/.test(context.message)) {
+        serveRare(context);
         return true;
     }
-    else if (/^#$/.test(context.message)) {
+    else if (/^(来片)?锅巴(\d{1,4}|https:\/\/twitter.com\/.+?\/status\/\d{19}(?:\?s=\d{1,2})?)$/.test(context.message)) {
+        serveDone(context);
+        return true;
+    }
+    else if (/^打开锅盖$/.test(context.message)) {
         bbqRisidue(context);
         return true;
     }
