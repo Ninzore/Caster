@@ -35,6 +35,7 @@
     },
     "bbq": {
         "storagePath": "data/tweBBQ",
+        "helpPage": "https://github.com/Ninzore/Caster",
         "defaultTemplate": {
             "article" : {
                 "css" : "",
