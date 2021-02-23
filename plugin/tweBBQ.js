@@ -44,9 +44,9 @@ const BBQ_ARGS = {
     "引用" : "quote",
     "选项" : "choice",
     "覆盖" : "cover_origin",
-    "无汉化组" : "no_group_info",
+    "无汉化组" : "no_logo",
     "回复中覆盖" : "cover_origin_in_reply",
-    "回复中无汉化组" : "no_group_info_in_reply",
+    "回复中无汉化组" : "no_logo_in_reply",
     "group_html" : "group_html",
     "article_html" : "article_html",
 }
@@ -202,10 +202,11 @@ async function cook(context, twitter_url, trans_args={}) {
                         if (i + 1 >= articles.length) break;
                         else {
                             article = articles[i+1].querySelector('[role=group]').parentElement;
+                
                             insert(article, html_ready.reply_html[i], 
-                                trans_args.no_group_info_in_reply ? '' 
-                                : (i+1 == html_ready.reply_html.length ? html_ready.trans_group_html : html_ready.logo_in_reply),
-                                trans_args.cover_origin_in_reply);
+                                i+1 === html_ready.reply_html.length ? (trans_args.no_logo ? '' : html_ready.trans_group_html) :
+                                (trans_args.no_logo_in_reply ? '' : html_ready.logo_in_reply),
+                                i+1 === html_ready.reply_html.length ? trans_args.cover_origin : trans_args.cover_origin_in_reply);
                         }
                     }
                 }
@@ -428,8 +429,8 @@ async function fillHtml(trans_args, conversation) {
     if (trans_args.cover_origin != undefined && trans_args.cover_origin_in_reply == undefined) {
         trans_args.cover_origin_in_reply = trans_args.cover_origin;
     }
-    if (trans_args.no_group_info != undefined && trans_args.no_group_info_in_reply == undefined) {
-        trans_args.no_group_info_in_reply = trans_args.no_group_info;
+    if (trans_args.no_logo != undefined && trans_args.no_logo_in_reply == undefined) {
+        trans_args.no_logo_in_reply = trans_args.no_logo;
     }
     if (trans_args.article.retweet != undefined) {
         trans_args.article.retweet = `<div class="css-901oao">${decoration(trans_args.article.retweet, trans_args.article)}</div>`;
@@ -599,7 +600,7 @@ async function setupHTML(trans_args, conversation) {
         for (let i in trans_args.article.reply) html_ready.reply_html.push(
             `<div style="display: block; white-space: pre-wrap; overflow-wrap: break-word;">${decoration(trans_args.article.reply[i], trans_args.article, conversation.reply[i] || false)}</div>`);
     }
-    if (!trans_args.no_group_info) {
+    if (!trans_args.no_logo) {
         if (/^http/.test(trans_args.group.group_info)) {
             trans_args.group.size = trans_args.group.size == defaultTemplate.group.size ? '30px' : trans_args.group.size;
             let img64 = "data:image/jpeg;base64," + await axios.get(trans_args.group.group_info, {responseType:'arraybuffer'})
@@ -609,10 +610,10 @@ async function setupHTML(trans_args, conversation) {
         else {
             html_ready.trans_group_html = (trans_args.group_html == undefined) ? 
                 ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0"',
-                ' style="display: block; margin: 2px 0px 3px 1px;">', 
+                ' style="display: block; margin: 4px 0px 3px 1px;">', 
                 decoration(trans_args.group.group_info, trans_args.group), '</div>'].join("")
                 : ['<div dir="auto" class="css-901oao r-hkyrab r-1tl8opc r-1blvdjr r-16dba41 r-ad9z0x r-bcqeeo r-bnwqim r-qvutc0;" ',
-                    'style="margin: 2px 0px 4px 1px; display: block;">',
+                    'style="margin: 4px 0px 4px 1px; display: block;">',
                      trans_args.group_html, '</div>'].join("");
         }
     }
@@ -813,9 +814,9 @@ function setTemplate(unparsed) {
             if (/^group_/.test(style) && !/\[CQ:image/.test(arg)) trans_args.group[style.replace(/^group_(?!info)/, "")] = arg;
             else if (/^in_reply_/.test(style)) trans_args.in_reply[style.replace(/^in_reply_/, "")] = arg;
             else if (style == 'cover_origin') trans_args.cover_origin = true;
-            else if (style == 'no_group_info') trans_args.no_group_info = true;
+            else if (style == 'no_logo') trans_args.no_logo = true;
             else if (style == 'cover_origin_in_reply') trans_args.cover_origin_in_reply = true;
-            else if (style == 'no_group_info_in_reply') trans_args.no_group_info_in_reply = true;
+            else if (style == 'no_logo_in_reply') trans_args.no_logo_in_reply = true;
             else if (style == 'group_info' && /\[CQ:image/.test(arg)) trans_args.group.group_info = /(http.+?)\?/.exec(option.join(""))[1];
             else if (style == 'choice') {
                 trans_args.article.choice = arg.split(/[;；]/).filter((noEmpty) => {return noEmpty != undefined && noEmpty.length > 0});
@@ -890,7 +891,7 @@ function findTemplate(username, group_id) {
         try {
             let res = await coll.findOne({group_id : group_id, username : username}) 
                 || await coll.findOne({group_id : group_id});
-            return (res) ? res.trans_args : false;
+            return ("trans_args" in res) ? res.trans_args : false;
         } catch(err) {console.error(err);
         } finally {mongo.close();}
     });
@@ -1145,6 +1146,10 @@ function complex(context) {
     }
     else if (/^打开锅盖$/.test(context.message)) {
         bbqRisidue(context);
+        return true;
+    }
+    else if (/^烤推说明书$/.test(context.message)) {
+        replyFunc(context, "看这里\n" + config.bbq.helpPage);
         return true;
     }
     else return false;
