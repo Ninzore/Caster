@@ -1018,6 +1018,37 @@ async function serveRare(context) {
     else twitter.rtSingleTweet(tweet_id, context);
 }
 
+async function dispose(group_id, which) {
+    return new Promise((resolve, reject) => {
+        try {
+            mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
+                const twe_sum = mongo.db('bot').collection('twe_sum');
+                await twe_sum.updateOne({group_id : group_id}, {$set : {[which] : []}});
+                mongo.close();
+                resolve(true);
+                return;
+            });
+        }
+        catch(err) {
+            console.error(err);
+            reject(false);
+            return;
+        }
+    })
+}
+
+async function disposeRare(context) {
+    let res = await dispose(context.group_id, "rare") || false;
+    let text = res ? "米缸空了" : "没能踢翻米缸";
+    replyFunc(context, text);
+}
+
+async function disposeDone(context) {
+    let res = await dispose(context.group_id, "done") || false;
+    let text = res ? "锅巴全都扔掉了，你真是个带恶人" : "没能扔掉锅巴";
+    replyFunc(context, text);
+}
+
 function seasoning(context, id = "") {
     let raw = context.message.replace(/\r\n|\n/g, "<br>");
     try {
@@ -1112,6 +1143,14 @@ function prepare(context) {
     }
 }
 
+function checkPermission(context) {
+    if (/owner|admin/.test(context.sender.role)) return true;
+    else {
+        replyFunc(context, "您配吗");
+        return false;
+    }
+}
+
 function complex(context) {
     if (connection && /^(推特|Twitter)截图\s?https:\/\/twitter.com\/.+?\/status\/\d{19}/i.test(context.message)) {
         let twitter_url = /https:\/\/twitter.com\/.+?\/status\/\d{19}/i.exec(context.message)[0];
@@ -1142,6 +1181,16 @@ function complex(context) {
     }
     else if (/^(来片)?锅巴(\d{1,4}|https:\/\/twitter.com\/.+?\/status\/\d{19}(?:\?s=\d{1,2})?)$/.test(context.message)) {
         serveDone(context);
+        return true;
+    }
+    else if (/^踢翻米缸$/.test(context.message)) {
+        if (!checkPermission(context)) return true;
+        disposeRare(context);
+        return true;
+    }
+    else if (/^扔掉锅巴$/.test(context.message)) {
+        if (!checkPermission(context)) return true;
+        disposeDone(context);
         return true;
     }
     else if (/^打开锅盖$/.test(context.message)) {

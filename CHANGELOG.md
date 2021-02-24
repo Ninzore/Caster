@@ -1,6 +1,9 @@
 # 更新日志
 
 ## 2021
+## 02/24 3.0.8
+* tweBBQ:
+  * Feat: 新增抛弃所有未/已烤制tweet
 
 ## 02/23 3.0.7
 * tweBBQ:
@@ -8,7 +11,6 @@
   * Feat: 新增说明书回应，config新增字段`bbq.helpPage`
   * Chore: 内部BBQ_ARGS的字段名字变更，由`no_group_info`、`no_group_info_in_reply`变为`no_logo`、`no_group_info`
   
-
 ## 02/22 3.0.6
 * tweBBQ:
   * Feat: 查看未烤制内容队列
