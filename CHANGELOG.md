@@ -1,6 +1,12 @@
 # 更新日志
 
 ## 2021
+
+## 02/25 3.0.9
+* Twitter:
+  * Refactor: 从Stream转发时增加错误处理
+  * Fix: tweet转发失败报错时groups未定义
+
 ## 02/24 3.0.8
 * tweBBQ:
   * Feat: 新增抛弃所有未/已烤制tweet
@@ -9,13 +15,13 @@
 * tweBBQ:
   * Fix: `无汉化组`和`回复中无汉化组`的行为和预期不符
   * Feat: 新增说明书回应，config新增字段`bbq.helpPage`
-  * Chore: 内部BBQ_ARGS的字段名字变更，由`no_group_info`、`no_group_info_in_reply`变为`no_logo`、`no_group_info`
+  * Refactor: 内部BBQ_ARGS的字段名字变更，由`no_group_info`、`no_group_info_in_reply`变为`no_logo`、`no_group_info`
   
 ## 02/22 3.0.6
 * tweBBQ:
   * Feat: 查看未烤制内容队列
   * Fix: tweet id小于15位时无法烤制（改成判断14~15位了，虽然还有更小的id但是那么早的推没人会烤所以无所谓）
-  * Chore: 适应新数据库字段格式
+  * Refactor: 适应新数据库字段格式
   * Chore: 略微修改logo位置
 
 ## 02/21 3.0.5
@@ -55,12 +61,12 @@
 ## 02/06 2.9.5
 * Twitter:
   * Feat: 新增视频下载（下载到本地并通过url发送，需要后端服务器如NGINX）
-  * Feat: 更好的断线重连机制
+  * Refactor: 更好的断线重连机制
   * Fix: Twitter更新时无法正确更新数据库
 
 ## 02/02 2.9.4
 * Twitter:
-  * Feat: 迁移到Twitter stream提供更低延迟的转发（添加Filtered Stream rule需要手工操作）
+  * Refactor: 迁移到Twitter stream提供更低延迟的转发（添加Filtered Stream rule需要手工操作）
   * Feat: config增加twitter部分
 
 ## 01/15 2.9.3

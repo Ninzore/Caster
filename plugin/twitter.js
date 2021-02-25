@@ -188,7 +188,7 @@ function getCookie() {
         let temp = "";
         let guest_id = "";  //expire 2 years
         let personalization_id = "";  //expire 2 years
-        let ct0 = "";  //expire 1 day
+        let ct0 = "";  //expire 6 hours
         let twitter_sess = "";  //not necessary
         for (let i = 0; i < res.headers["set-cookie"].length; i++) {            
             if (temp = /guest_id=.+?; /.exec(res.headers["set-cookie"][i])) guest_id = temp[0];
@@ -440,29 +440,38 @@ function stream() {
             console.log("Twitter stream 已连接");
             stream_retry = 0;
             const stream = res.data;
-            stream.on("data", data => {
-                let text = data.toString();
-                if (text.length < 3) ;
-                else {
-                    const serialised = JSON.parse(text);
-                    if (serialised.data === undefined) {
-                        console.log("undefined data: ", text);
-                    }
-                    else getSingleTweet(serialised.data.id).then(tweet => {
-                        mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
-                            const twe_sum = mongo.db('bot').collection('twe_sum');
-                            const summ = await twe_sum.find({}, {projection : {list : 0}}).toArray();
-                            
-                            let summ_ = {};
-                            for (let group of summ) {
-                                summ_[group.group_id] = group;
-                            }
+            stream.on("data", async data => {
+                try {
+                    let text = data.toString();
+                    if (text.length < 3) ;
+                    else {
+                        const serialised = JSON.parse(text);
+                        if (serialised.data === undefined) {
+                            console.log("undefined data: ", text);
+                        }
+                        else {
+                            mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
+                                let tweet = await getSingleTweet(serialised.data.id);
+                                if (!tweet) tweet = await getSingleTweet(serialised.data.id);
 
-                            const subscribe = subscribes[serialised.includes.users[0].id];
-                            retweet(tweet, subscribe, options, summ_);
-                            await mongo.close();
-                        });
-                    });
+                                const twe_sum = mongo.db('bot').collection('twe_sum');
+                                const summ = await twe_sum.find({}, {projection : {list : 0}}).toArray();
+                                await mongo.close();
+
+                                let summ_ = {};
+                                for (let group of summ) {
+                                    summ_[group.group_id] = group;
+                                }
+    
+                                const subscribe = subscribes[serialised.includes.users[0].id];
+                                retweet(tweet, subscribe, options, summ_);
+                            });
+                        };
+                    }
+                }
+                catch(err) {
+                    let time = new Date();
+                    console.error("Twitter error happens during handling new tweet", time.getHours(), time.getMinutes(), err);
                 }
             });
             stream.on("error", data => {
@@ -499,6 +508,7 @@ function retry(err, subscribes, options) {
 
 async function retweet(tweet, subscribe, options, summ) {
     try {
+        const groups = subscribe.groups;
         if (!tweet) {
             for (let group_id of groups) {
                 replyFunc({group_id : group_id, message_type : "group"}, "Twitter转发时出错");
@@ -507,7 +517,6 @@ async function retweet(tweet, subscribe, options, summ) {
         }
 
         if (!subscribe) throw `https://twitter.com/${tweet.user.screen_name}/status/${tweet.id_str}`;
-        const groups = subscribe.groups;
         let bbq_group = [];
         const url = `https://twitter.com/${tweet.user.screen_name}/status/${tweet.id_str}`;
         
