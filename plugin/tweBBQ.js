@@ -1018,16 +1018,15 @@ async function serveRare(context) {
     else twitter.rtSingleTweet(tweet_id, context);
 }
 
-async function dispose(group_id, which) {
-    return new Promise((resolve, reject) => {
+async function disposeSingle(group_id, which, id) {
+    return new Promise(async (resolve, reject) => {
         try {
-            mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
-                const twe_sum = mongo.db('bot').collection('twe_sum');
-                await twe_sum.updateOne({group_id : group_id}, {$set : {[which] : []}});
-                mongo.close();
-                resolve(true);
-                return;
-            });
+            let mongo = await mongodb(DB_PATH, {useUnifiedTopology: true}).connect();
+            const twe_sum = mongo.db('bot').collection('twe_sum');
+            let res = await twe_sum.updateOne({group_id : group_id}, {$pull : {[which] : {"id" : id}}});
+            mongo.close();
+            resolve(res.modifiedCount > 0 ? true : false);
+            return;
         }
         catch(err) {
             console.error(err);
@@ -1037,16 +1036,58 @@ async function dispose(group_id, which) {
     })
 }
 
-async function disposeRare(context) {
-    let res = await dispose(context.group_id, "rare") || false;
-    let text = res ? "米缸空了" : "没能踢翻米缸";
-    replyFunc(context, text);
+function disposeRare(context) {
+    let id = parseInt(/\d{1,4}/.exec(context.message)[0]);
+    disposeSingle(context.group_id, "rare", id).then(res => {
+        let text = res ? "这米扔了" : "没有这粒米";
+        replyFunc(context, text);
+    }).catch(err => {
+        replyFunc(context, "抛米异常");
+    });
 }
 
 async function disposeDone(context) {
-    let res = await dispose(context.group_id, "done") || false;
-    let text = res ? "锅巴全都扔掉了，你真是个带恶人" : "没能扔掉锅巴";
-    replyFunc(context, text);
+    let id = parseInt(/\d{1,4}/.exec(context.message)[0]);
+    disposeSingle(context.group_id, "done", id).then(res => {
+        let text = res ? "这锅巴飞了" : "没有这块锅巴";
+        replyFunc(context, text);
+    }).catch(err => {
+        replyFunc(context, "飞锅巴异常");
+    });
+}
+
+async function disposeAll(group_id, which) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            let mongo = await mongodb(DB_PATH, {useUnifiedTopology: true}).connect();
+            const twe_sum = mongo.db('bot').collection('twe_sum');
+            await twe_sum.updateOne({group_id : group_id}, {$set : {[which] : []}});
+            mongo.close();
+            resolve(true);
+            return;
+        }
+        catch(err) {
+            console.error(err);
+            reject(false);
+            return;
+        }
+    })
+}
+
+function disposeAllRare(context) {
+    disposeAll(context.group_id, "rare").then(res => {
+        replyFunc(context, "米缸空了");
+    }).catch(err => {
+        replyFunc(context, "踢缸异常");
+    });
+}
+
+function disposeAllDone(context) {
+    disposeAll(context.group_id, "done").then(res => {
+        replyFunc(context, "锅里空了");
+    }).catch(err => {
+        replyFunc(context, "掀锅异常");
+    });
 }
 
 function seasoning(context, id = "") {
@@ -1056,8 +1097,8 @@ function seasoning(context, id = "") {
         let text_index = /https:\/\/twitter\.com\/\w+?\/status\/\d+(?:\?s=\d{1,2})?/.exec(raw);
         let text = raw.substring(text_index.index + text_index[0].length);
 
-        findTemplate(username, context.group_id).then(async saved_trans_args => {
-            if (!saved_trans_args) saved_trans_args = Object.create(defaultTemplate);
+        findTemplate(username, context.group_id).then(saved_trans_args => {
+            if (!saved_trans_args) saved_trans_args = JSON.parse(JSON.stringify(defaultTemplate));
             if (/^(\s|[>＞]{2}|<br>)/.test(text)) {
                 let starter = /^(\s|[>＞]{2}|<br>)/.exec(text);
                 text = text.substring(starter[1].length).trim().replace(/^<br>/, "");
@@ -1183,14 +1224,22 @@ function complex(context) {
         serveDone(context);
         return true;
     }
-    else if (/^踢翻米缸$/.test(context.message)) {
-        if (!checkPermission(context)) return true;
+    else if (/^(不要|扔掉)米\d{1,4}$/.test(context.message)) {
         disposeRare(context);
         return true;
     }
-    else if (/^扔掉锅巴$/.test(context.message)) {
-        if (!checkPermission(context)) return true;
+    else if (/^(不要|扔掉)锅巴\d{1,4}/.test(context.message)) {
         disposeDone(context);
+        return true;
+    }
+    else if (/^踢翻米缸$/.test(context.message)) {
+        if (!checkPermission(context)) return true;
+        disposeAllRare(context);
+        return true;
+    }
+    else if (/^掀掉锅子$/.test(context.message)) {
+        if (!checkPermission(context)) return true;
+        disposeAllDone(context);
         return true;
     }
     else if (/^打开锅盖$/.test(context.message)) {
@@ -1198,7 +1247,11 @@ function complex(context) {
         return true;
     }
     else if (/^烤推说明书$/.test(context.message)) {
-        replyFunc(context, "看这里\n" + config.bbq.helpPage);
+        replyFunc(context, "看这里\na-wsl.com/Caster");
+        return true;
+    }
+    else if (/^锅子说明书$/.test(context.message)) {
+        replyFunc(context, "打开锅盖 => (不要|扔掉)米/锅巴 => 踢翻米缸/掀掉锅子");
         return true;
     }
     else return false;
