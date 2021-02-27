@@ -440,19 +440,18 @@ function stream() {
             console.log("Twitter stream 已连接");
             stream_retry = 0;
             const stream = res.data;
-            stream.on("data", async data => {
+            stream.on("data", data => {
                 try {
                     let text = data.toString();
                     if (text.length < 3) ;
                     else {
-                        const serialised = JSON.parse(text);
-                        if (serialised.data === undefined) {
-                            console.log("undefined data: ", text);
+                        const unserialised = JSON.parse(text);
+                        if (unserialised.data === undefined) {
+                            console.error("undefined data: ", text);
                         }
                         else {
                             mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
-                                let tweet = await getSingleTweet(serialised.data.id);
-                                if (!tweet) tweet = await getSingleTweet(serialised.data.id);
+                                let tweet = await getSingleTweet(unserialised.data.id);
 
                                 const twe_sum = mongo.db('bot').collection('twe_sum');
                                 const summ = await twe_sum.find({}, {projection : {list : 0}}).toArray();
@@ -463,7 +462,7 @@ function stream() {
                                     summ_[group.group_id] = group;
                                 }
     
-                                const subscribe = subscribes[serialised.includes.users[0].id];
+                                const subscribe = subscribes[unserialised.includes.users[0].id];
                                 retweet(tweet, subscribe, options, summ_);
                             });
                         };
@@ -501,7 +500,7 @@ function retry(err, subscribes, options) {
         setTimeout(() => stream(), 15000);
     } else {
         inStream = false;
-        console.error("Twitter stream disconnected and out of retry times 彻底断线");
+        console.error("Twitter stream disconnected and out of retry times 断线");
         replyFunc({user_id: global.config.bot.admin, message_type : "private"}, "Twitter stream 断线");
     }
 }
@@ -557,7 +556,7 @@ async function retweet(tweet, subscribe, options, summ) {
 
                 addon.push(url);
                 const context = {group_id : group_id, message_type : "group"};
-                format(tweet, false, true).then(payload => {
+                format(tweet, false, context).then(payload => {
                     payload += `\n\n${addon.join("\n")}`
                     replyFunc(context, payload);
                 }).catch(err => console.error(err));
@@ -684,7 +683,7 @@ function clearSubs(context, group_id) {
  * @param {string} from_user Twitter用户名
  * @returns Promise  排列完成的Tweet String
  */
-async function format(tweet, end_point = false, down = false) {
+async function format(tweet, end_point = false, context = false) {
     if (!tweet) return "Twitter转发时错误";
     let payload = [];
     let text = "";
@@ -737,13 +736,12 @@ async function format(tweet, end_point = false, down = false) {
                             mp4obj.sort((a, b) => {return b.bitrate - a.bitrate;});
                             payload.push(`[CQ:image,cache=0,file=${media[i].media_url_https}]`);
     
-                            if (down) {
+                            if (context) {
                                 if (fs.existsSync(path.join(DOWNLOAD_PATH, `${tweet.id_str}.mp4`))) {
-                                    payload.push(`视频下载:\n${BASE_URL}${tweet.id_str}.mp4`);
+                                    replyFunc(context, `[CQ:video,file=${mp4obj[0].url}]`);
                                 }
-                                else if (down && media[i].video_info.duration_millis < MAX_DURATION) {
-                                    let video = await videoDown(tweet.id_str, mp4obj[0].url);
-                                    payload.push(video);
+                                else if (context && media[i].video_info.duration_millis < MAX_DURATION) {
+                                    replyFunc(context, `[CQ:video,file=${mp4obj[0].url}]`);                                    
                                 }
                             }
                             else payload.push(`视频地址: ${mp4obj[0].url}`);
@@ -867,7 +865,7 @@ function rtTimeline(context, name, num) {
 
 function rtSingleTweet(tweet_id_str, context) {
     getSingleTweet(tweet_id_str).then(tweet => {
-        format(tweet, false, true).then(tweet_string => replyFunc(context, tweet_string));
+        format(tweet, true, context).then(tweet_string => replyFunc(context, tweet_string));
     });
 }
 
