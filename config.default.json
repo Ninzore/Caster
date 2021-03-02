@@ -60,9 +60,9 @@
             },
             "extra" : {},
             "cover_origin" : false,
-            "no_group_info" : false,
+            "no_logo" : false,
             "cover_origin_in_reply" : false,
-            "no_group_info_in_reply" : false
+            "no_logo_in_reply" : false
         }
     }
 }
