@@ -2,6 +2,13 @@
 
 ## 2021
 
+## 03/02 3.1.2
+* Twitter:
+  * Fix: 由于Twitter改动，更改quote区块selector
+  * Fix: 修改选项区域的selector并增强稳定性
+* config file:
+  * Chore: 字段更名
+
 ## 02/27 3.1.1
 * Twitter:
   * Feat: 视频内容改为用小视频形式发送 (需要后端支持，如go-cqhttp v0.9.38以上)
@@ -26,7 +33,7 @@
 * tweBBQ:
   * Fix: `无汉化组`和`回复中无汉化组`的行为和预期不符
   * Feat: 新增说明书回应，config新增字段`bbq.helpPage`
-  * Refactor: 内部BBQ_ARGS的字段名字变更，由`no_group_info`、`no_group_info_in_reply`变为`no_logo`、`no_group_info`
+  * Refactor: 内部BBQ_ARGS的字段名字变更，由`no_group_info`、`no_group_info_in_reply`变为`no_logo`、`no_logo_in_reply`
   
 ## 02/22 3.0.6
 * tweBBQ:

@@ -128,9 +128,9 @@ async function cook(context, twitter_url, trans_args={}) {
                 let articles = document.querySelectorAll('article');
                 let article = articles[0].querySelector('[role=group]').parentElement;
                 insert(article, html_ready.trans_article_html, 
-                    html_ready.reply_html != undefined ? ((trans_args.no_group_info && trans_args.no_group_info_in_reply) ? '' : html_ready.logo_in_reply) 
+                    html_ready.reply_html != undefined ? ((trans_args.no_logo_in_reply) ? '' : html_ready.logo_in_reply) 
                         : html_ready.trans_group_html
-                    , trans_args.cover_origin);
+                    , html_ready.reply_html != undefined ? trans_args.cover_origin_in_reply : trans_args.cover_origin);
                 
                 if (trans_args.article.image != undefined) {
                     trans_args.article.image = "data:image/jpeg;base64," + trans_args.article.image;
@@ -187,14 +187,16 @@ async function cook(context, twitter_url, trans_args={}) {
                 }
 
                 if (trans_args.article.quote != undefined) {
-                    let quote_block = document.querySelector('[role="blockquote"]');
-                    if (!quote_block) quote_block = document.getElementsByClassName("r-dap0kf")[0];
+                    let quote_block = document.querySelector('.r-1bs4hfb');
+                    if (!quote_block) quote_block = document.querySelector('.css-1dbjc4n .css-1dbjc4n .css-1dbjc4n.r-1s2bzr4 .css-1dbjc4n [data-focusable]');
                     quote_block.firstChild.children[1].querySelector("[lang]").innerHTML = html_ready.quote_html;
                 }
 
                 if (trans_args.article.choice != undefined) {
-                    let choice_list = article.children[1].querySelectorAll("span");
-                    for (let i = 0; i < choice_list.length/2; i++) choice_list[2*i].innerText = trans_args.article.choice[i];
+                    let choice_list = document.querySelectorAll('section [role="button"][tabindex="0"] .r-eljoum');
+                    for (let i = 0; i < trans_args.article.choice.length; i++) {
+                        choice_list[i].innerText = trans_args.article.choice[i];
+                    }
                 }
 
                 if (html_ready.reply_html != undefined && html_ready.reply_html.length > 0) {
