@@ -202,6 +202,7 @@ async function cook(context, twitter_url, trans_args={}) {
                 if (html_ready.reply_html != undefined && html_ready.reply_html.length > 0) {
                     for (let i = 0; i < html_ready.reply_html.length; i++) {
                         if (i + 1 >= articles.length) break;
+                        else if (html_ready.reply_html[i].length === 0) continue;
                         else {
                             article = articles[i+1].querySelector('[role=group]').parentElement;
                 
@@ -599,8 +600,11 @@ async function setupHTML(trans_args, conversation) {
     }
     if (trans_args.article.reply != undefined) {
         html_ready.reply_html = [];
-        for (let i in trans_args.article.reply) html_ready.reply_html.push(
+        for (let i in trans_args.article.reply) {
+            if (trans_args.article.reply[i].length == 0) continue;
+            html_ready.reply_html.push(
             `<div style="display: block; white-space: pre-wrap; overflow-wrap: break-word;">${decoration(trans_args.article.reply[i], trans_args.article, conversation.reply[i] || false)}</div>`);
+        }
     }
     if (!trans_args.no_logo) {
         if (/^http/.test(trans_args.group.group_info)) {

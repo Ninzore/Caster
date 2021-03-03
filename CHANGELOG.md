@@ -2,8 +2,12 @@
 
 ## 2021
 
+## 03/03 3.1.3
+* tweBBQ:
+  * Fix: 回复时如果只有一张图，允许空行跳过
+
 ## 03/02 3.1.2
-* Twitter:
+* tweBBQ:
   * Fix: 由于Twitter改动，更改quote区块selector
   * Fix: 修改选项区域的selector并增强稳定性
 * config file:
