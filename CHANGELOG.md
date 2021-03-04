@@ -2,6 +2,16 @@
 
 ## 2021
 
+## 03/04 3.1.5
+* tweBBQ:
+  * Feat: 增加烤推历史的纯文字版
+  * Fix: 增强稳定性，增加获取对话时的报错信息
+* 修改指令:
+  * pm2start -> start
+  * pm2restart -> restart
+  * pm2stop -> stop
+  * pm2log -> log
+
 ## 03/03 3.1.3
 * tweBBQ:
   * Fix: 回复时如果只有一张图，允许空行跳过

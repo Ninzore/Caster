@@ -476,10 +476,11 @@ function getTweet(tweet_id) {
 }
 
 function getConversation(tweet_id) {
+    let headers = twitter.httpHeader();
     return axios({
         method : "GET",
         url : `https://twitter.com/i/api/2/timeline/conversation/${tweet_id}.json`,
-        headers : twitter.httpHeader(),
+        headers : headers,
         params : {
             "simple_quoted_tweet": true,
             "tweet_mode" : "extended",
@@ -487,7 +488,7 @@ function getConversation(tweet_id) {
         }
     }).then(res => {return res.data
     }).catch(err => {
-        console.error("getConversation error\n" + err.response.data);
+        console.error("getConversation error", tweet_id, err.response);
         return false;
     })
 }
@@ -510,7 +511,7 @@ async function rebuildConversation(tweet_id, trans_args_len) {
         return conversation;
     }
 
-    let timeline = (await getConversation(tweet_id)).globalObjects.tweets;
+    let timeline = (await getConversation(tweet_id)).globalObjects.tweets || false;
     if (!timeline) return conversation;
     
     let begin = true;
@@ -970,6 +971,18 @@ function bbqRisidue(context) {
     });
 }
 
+function formatTranslated(trans_args) {
+    const article = trans_args.article;
+    let text = [article.origin];
+    if ("quote" in article && article.quote.length > 0) text.push("引用了", article.quote);
+    if ("reply" in article && article.reply.length > 0) {
+        for (let reply of article.reply) {
+            if (reply.length > 0) text.push("回复了", reply);
+        }
+    }
+    return text.join("\n").replace(/<br>/g, "\n");
+}
+
 function retriveUrl(group_id, id) {
     return new Promise((resolve, reject) => {
         try {
@@ -1010,6 +1023,40 @@ async function serveDone(context) {
         replyFunc(context, text);
     });
     return;
+}
+
+async function serveMedium(context) {
+    let tweet_id = 0;
+    const group_id = context.group_id;
+
+    if (/https:\/\/twitter.com\/.+?\/status\/\d{19}/.test(context.message)) {
+        tweet_id = /\d{19}/.exec(context.message)[0];
+    }
+    else {
+        let id = parseInt(/\d{1,4}/.exec(context.message)[0]);
+        if (id == 0) {
+            replyFunc(context, "没有0", true);
+            return;
+        }
+        tweet_id = await retriveUrl(group_id, id);
+    }
+
+    try {
+        mongo = await mongodb(DB_PATH, {useUnifiedTopology: true}).connect();
+        const twe_sum = mongo.db('bot').collection('twe_sum');
+        const res = await twe_sum.findOne({group_id : group_id}, 
+            {projection : {"done" : {$elemMatch : {"tweet_id" : tweet_id}}, "list" : 0, "rare" : 0}});
+        mongo.close();
+        
+        let text = ("done" in res && res.done[0]) ? formatTranslated(res.done[0].trans_args) 
+            : "这饭都馊了，早扔掉了";
+        replyFunc(context, text);
+        return;
+    }
+    catch(err) {
+        console.error(err);
+        return;
+    }
 }
 
 async function serveRare(context) {
@@ -1224,6 +1271,10 @@ function complex(context) {
     }
     else if (/^(来把)?米\d{1,4}$/.test(context.message)) {
         serveRare(context);
+        return true;
+    }
+    else if (/^(来碗)?饭(\d{1,4}|https:\/\/twitter.com\/.+?\/status\/\d{19}(?:\?s=\d{1,2})?)$/.test(context.message)) {
+        serveMedium(context);
         return true;
     }
     else if (/^(来片)?锅巴(\d{1,4}|https:\/\/twitter.com\/.+?\/status\/\d{19}(?:\?s=\d{1,2})?)$/.test(context.message)) {
