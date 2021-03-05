@@ -443,7 +443,7 @@ async function fillHtml(trans_args, conversation) {
             .then(res => {return Buffer.from(res.data, 'binary').toString('base64')}).catch(err => {throw "获取图片错误"});
     }
     if (trans_args.article.marshmallow != undefined && trans_args.article.marshmallow) {
-        trans_args.article.image = await marshmallow.toast({}, trans_args.article.marshmallow, false);
+        trans_args.article.image = await marshmallow.toast({}, trans_args.article.marshmallow.replace(/<br>/g, "\n"), false);
     }
 
     if ("reply" in trans_args.article && trans_args.article.reply.length > 0) {
