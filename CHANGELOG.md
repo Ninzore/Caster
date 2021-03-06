@@ -2,6 +2,12 @@
 
 ## 2021
 
+## 03/06 3.1.7
+* tweBBQ:
+  * Fix: 让video poster更加符合Twitter样式（如视频四周的黑边）
+  * Change: 现在截图前总是会先检查
+  * Style: 补齐变量声明
+
 ## 03/05 3.1.6
 * tweBBQ:
   * Fix: 烤棉花糖时并没有正确换行

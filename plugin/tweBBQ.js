@@ -87,7 +87,7 @@ async function cook(context, twitter_url, trans_args={}) {
             return;
         }
         replyFunc(context, "收到，如果2分钟后还没有图可能是瘫痪了");
-        let conversation = await rebuildConversation(tweet_id, Object.keys(trans_args).length);
+        let conversation = await rebuildConversation(tweet_id);
         if (!conversation) {
             throw 1;
         }
@@ -254,7 +254,10 @@ async function cook(context, twitter_url, trans_args={}) {
                     let poster = false;
                     if (video.querySelector('[poster]') != null) poster = video.querySelector('[poster]').poster;
                     else poster = conversation.poster;
-                    if (poster) video.firstChild.lastChild.innerHTML = `<img style="max-height:100%; max-width:100%" src="${poster}">`;
+                    if (poster) {
+                        video.firstChild.lastChild.style = "width: 100%; height: 100%; background-color: transparent; overflow: hidden;";
+                        video.firstChild.lastChild.innerHTML = `<video style="background-color: black; height:100%; width:100%; max-height:100%; max-width:100%" poster="${poster}"></video>`;
+                    }
                 }
                 document.querySelector("#react-root").scrollIntoView(true);
             }, conversation);
@@ -493,7 +496,7 @@ function getConversation(tweet_id) {
     })
 }
 
-async function rebuildConversation(tweet_id, trans_args_len) {
+async function rebuildConversation(tweet_id) {
     let conversation = {
         origin : "",
         quote : "",
@@ -503,7 +506,6 @@ async function rebuildConversation(tweet_id, trans_args_len) {
 
     let tweet = await getTweet(tweet_id);
     if (tweet == undefined || !tweet) return false;
-    if (trans_args_len == 0) return true;
 
     conversation.origin = tweetTextPrepare(tweet);
     if (tweet.in_reply_to_status_id_str == undefined && tweet.quoted_status_id_str == undefined) {
@@ -1066,7 +1068,7 @@ async function serveRare(context) {
         replyFunc(context, "没有0", true);
         return;
     }
-    tweet_id = await retriveUrl(group_id, id);
+    let tweet_id = await retriveUrl(group_id, id);
     if (!tweet_id) replyFunc(context, "没有这条推", true);
     else twitter.rtSingleTweet(tweet_id, context);
 }
