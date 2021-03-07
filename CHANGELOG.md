@@ -2,6 +2,10 @@
 
 ## 2021
 
+## 03/07 3.1.8
+* tweBBQ:
+  * Feat: 处理有时会出现的全屏提醒
+
 ## 03/06 3.1.7
 * tweBBQ:
   * Fix: 让video poster更加符合Twitter样式（如视频四周的黑边）
