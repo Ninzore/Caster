@@ -23,8 +23,8 @@
         "port": 0
     },
     "twitter": {
-        "token": "",
-        "base_url": ""
+        "enableStream": false,
+        "token": ""
     },
     "translate": {
         "tencent": {
