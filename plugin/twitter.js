@@ -7,14 +7,14 @@ const path = require('path');
 const translator = require('./translate');
 
 const PROXY_CONF = global.config.proxy;
+const CONFIG = global.config.twitter;
+const BEARER_TOKEN = CONFIG.token;
 const DB_PORT = 27017;
 const DB_PATH = "mongodb://127.0.0.1:" + DB_PORT;
-const BEARER_TOKEN = global.config.twitter.token;
 const OFFICIAL_TOKEN = "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA";
 const MAX_SIZE = 4194304;
 const MAX_DURATION = 3 * 60 * 1000;
 const DOWNLOAD_PATH = path.join(__dirname, "../../data/twitter/");
-const BASE_URL = global.config.twitter.base_url;
 
 const OPTION_MAP = {
     "仅原创" : "origin_only",
@@ -385,6 +385,10 @@ function unSubscribe(name, context) {
  */
 function checkTwiTimeline() {
     if (!connection) return;
+    if (!CONFIG.enableStream || BEARER_TOKEN.length < 20 || !/^Bearer/.test(BEARER_TOKEN)) {
+        console.log("根据配置，Twitter Stream不会启动");
+        return;
+    }
     // let check_interval = 7 * 60 * 1000;
     mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
         const twitter_db = mongo.db('bot').collection('twitter');
@@ -804,28 +808,6 @@ async function format(tweet, end_point = false, context = false) {
         payload.push(`${tweet.user.name}的Twitter`, text);
         return payload.join("\n");
     }
-}
-
-async function videoDown(id_str, source) {
-    return new Promise(resolve => {
-        try {
-            axios.get(source, {responseType : "stream"}).then(async video_stream => {
-                const stream_write = fs.createWriteStream(path.join(DOWNLOAD_PATH, `${id_str}.mp4`));
-                video_stream.data.pipe(stream_write);
-                stream_write.on("close", () => {
-                    resolve(`视频下载:\n${BASE_URL}${id_str}.mp4`);
-                });
-                stream_write.on("error", () => {
-                    stream_write.close();
-                    resolve(`视频地址: ${source}\n视频下载失败，重试或联系管理员`);
-                });
-            });
-        }
-        catch(err) {
-            console.error(err);
-            resolve(`视频地址: ${source}\n视频下载失败，重试或联系管理员`);
-        }
-    }) 
 }
 
 /**

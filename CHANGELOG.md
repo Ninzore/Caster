@@ -2,6 +2,10 @@
 
 ## 2021
 
+## 03/08 3.1.9
+* Twitter:
+  * Feat: 添加config参数，可以选择是否启动Twitter Stream
+
 ## 03/07 3.1.8
 * tweBBQ:
   * Feat: 处理有时会出现的全屏提醒
