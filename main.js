@@ -24,7 +24,6 @@ Object.assign(global, {
 // 开始
 bilibili.bilibiliReply(replyMsg);
 twitter.twitterReply(replyMsg);
-translate.transReply(replyMsg);
 tweBBQ.cookTweReply(replyMsg);
 
 setTimeout(() => bilibili.checkBiliDynamic(replyMsg), 20000);
