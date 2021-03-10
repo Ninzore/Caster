@@ -264,7 +264,7 @@ async function cook(context, twitter_url, trans_args={}) {
         }
         
         await page.waitFor(2000);
-        let tweet_box = await page.$('article .css-1dbjc4n .r-vpgt9t').then((tweet_article) => {
+        let tweet_box = await page.$('article .css-1dbjc4n .r-1r5su4o').then((tweet_article) => {
             if (tweet_article == null) return {
                 height : 600,
                 width : 600,
@@ -900,7 +900,7 @@ function findTemplate(username, group_id) {
         try {
             let res = await coll.findOne({group_id : group_id, username : username}) 
                 || await coll.findOne({group_id : group_id});
-            return ("trans_args" in res) ? res.trans_args : false;
+            return (res &&"trans_args" in res) ? res.trans_args : false;
         } catch(err) {console.error(err);
         } finally {mongo.close();}
     });
