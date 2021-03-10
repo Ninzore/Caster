@@ -1,21 +1,22 @@
 const tencentcloud = require("tencentcloud-sdk-nodejs");
 
 const TmtClient = tencentcloud.tmt.v20180321.Client;
-const SECRET_ID = global.config.translate.tencent.secretId;
-const SECRET_KEY = global.config.translate.tencent.secretKey;
+const CONFIG = global.config.translate.tencent;
+const SECRET_ID = CONFIG.secretId;
+const SECRET_KEY = CONFIG.secretKey;
 const clientConfig = {
     credential: {
         secretId: SECRET_ID,
         secretKey: SECRET_KEY,
     },
-    region: global.config.translate.tencent.region,
+    region: CONFIG.region,
     profile: {
             httpProfile: {
             endpoint: "tmt.tencentcloudapi.com",
         },
     },
 };
-const client = new TmtClient(clientConfig);
+const client = (SECRET_ID != "" && SECRET_KEY != "") ? new TmtClient(clientConfig) : false;
 
 let target = {};
 
