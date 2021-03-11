@@ -2,6 +2,13 @@
 
 ## 2021
 
+## 03/09 3.2.0
+* tweBBQ:
+  * Fix: class变更导致的截图不全
+  * Fix: MongoDB中没有`twiBBQ`colloection的时候报错
+* Translate
+  * Style: 写正常点儿
+
 ## 03/08 3.1.9
 * Twitter:
   * Feat: 添加config参数，可以选择是否启动Twitter Stream
