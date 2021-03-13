@@ -689,7 +689,7 @@ function parseString(text, origin_text = false) {
     
     if (/\/c/.test(text) && origin_text != false) {
         let ori = origin_text
-            .match(/([^\w\n０-９\u23e9-\u23ec\u23f0\u23f3\u267e\u26ce\u2705\u2728\u274c\u274e\u2753-\u2755\u2795-\u2797\u27b0\u27bf\u2800-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]|[03_・ー゛゜灬]){4,}|([_・ー゛゜])\2{3,}/g);
+            .match(/([^\w\n０-９\u23e9-\u23ec\u23f0\u23f3\u267e\u26ce\u2705\u2728\u274c\u274e\u2753-\u2755\u2795-\u2797\u27b0\u27bf\u2800-\u2B55\udf00-\udfff\udc00-\ude4f\ude80-\udeff\u3040-\u30FF\u4E00-\u9FCB\u3400-\u4DB5\uac00-\ud7ff]|[03_・ー゛゜灬◦]){4,}|([_・ー゛゜◦])\2{3,}/g);
         let replacement = text.match(/\/c/g);
 
         if (ori != null && replacement != null) {
@@ -706,7 +706,7 @@ function parseString(text, origin_text = false) {
         }
     }
 
-    text = text.replace(/((#|@)\S+?)((?=[】\])\s\n])|$)/g,'<span style="color:#1DA1F2;">$1</span>')
+    text = text.replace(/((#|@)\S+?)((?=[】\])\s\n])|<br>|$)/g,'<span style="color:#1DA1F2;">$1</span>')
         .replace(/(([--:\w?@%&+~#=]*\.[a-z]{2,4}\/{0,2})((?:[?&](?:\w+)=(?:\w+))+|[--:\w?@%&+~#=]+)?)/g,'<span style="color:#1DA1F2;">$1</span>');
 
     if (/[\s\/](\W{1,5})[x×*](\d{1,2})/.test(text)) {
