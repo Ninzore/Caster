@@ -1,10 +1,10 @@
-const puppeteer = require('puppeteer');
-const mongodb = require('mongodb').MongoClient;
-const axios = require('axios');
-const path = require("path");
-const fs = require("fs-extra");
-const marshmallow = require("./marshmallow");
-const twitter = require("./twitter");
+import puppeteer from "puppeteer";
+import {MongoClient as mongodb} from "mongodb";
+import axios from "axios";
+import path from "path";
+import fs from "fs-extra";
+import marshmallow from "./marshmallow";
+import twitter from "./twitter";
 
 const DB_PORT = 27017;
 const DB_PATH = "mongodb://127.0.0.1:" + DB_PORT;
@@ -12,7 +12,7 @@ const TWEMOJI = "(?:\ud83d\udc68\ud83c\udffb\u200d\ud83e\udd1d\u200d\ud83d\udc68
 const TWEMOJI_REG = new RegExp(TWEMOJI, "g");
 const TWEMOJI_GROUP_REG = new RegExp(`(${TWEMOJI})+`, "g");
 
-const config = require("../config.json").bbq;
+const config = global.config.bbq;
 const defaultTemplate = config.defaultTemplate;
 const STORAGEPATH = config.storagePath;
 
@@ -854,18 +854,14 @@ function setTemplate(unparsed) {
 }
 
 function fillTemplate(template = {}) {
-    return new Proxy(template, handler = {
-        get : (target, prop) => {
-            if (typeof(defaultTemplate[prop]) === 'object') {
-                return !Reflect.has(target, prop) ? defaultTemplate[prop] :
-                    new Proxy(target[prop], handler = {
-                        get : (deep_target, deep_prop) => {
-                            return Reflect.has(deep_target, deep_prop) ? deep_target[deep_prop] : defaultTemplate[prop][deep_prop];
-                        }
-                    });
+    return [defaultTemplate, template].reduce((prev, next) => {
+        for (let key in prev) {
+            if (typeof(prev[key]) == "object") {
+                next[key] = {...prev[key], ...next[key]};
             }
-            return target.hasOwnProperty(prop) ? target[prop] : defaultTemplate[prop];
+            else next[key] = next[key] != undefined ? next[key] : prev[key];
         }
+        return next;
     });
 }
 
@@ -1044,7 +1040,7 @@ async function serveMedium(context) {
     }
 
     try {
-        mongo = await mongodb(DB_PATH, {useUnifiedTopology: true}).connect();
+        let mongo = await mongodb(DB_PATH, {useUnifiedTopology: true}).connect();
         const twe_sum = mongo.db('bot').collection('twe_sum');
         const res = await twe_sum.findOne({group_id : group_id}, 
             {projection : {"done" : {$elemMatch : {"tweet_id" : tweet_id}}, "list" : 0, "rare" : 0}});
@@ -1248,7 +1244,7 @@ function checkPermission(context) {
 }
 
 function complex(context) {
-    if (connection && /^(推特|Twitter)截图\s?https:\/\/twitter.com\/.+?\/status\/\d{19}/i.test(context.message)) {
+    if (connection && /^(推特|Twitter)?截图\s?https:\/\/twitter.com\/.+?\/status\/\d{19}/i.test(context.message)) {
         let twitter_url = /https:\/\/twitter.com\/.+?\/status\/\d{19}/i.exec(context.message)[0];
         cook(context, twitter_url);
         return true;
@@ -1316,4 +1312,4 @@ function complex(context) {
     else return false;
 }
 
-module.exports = {complex, cookTweReply};
+export default {complex, cookTweReply};
