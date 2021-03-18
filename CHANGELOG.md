@@ -1,6 +1,12 @@
 # 更新日志
 
 ## 2021
+
+## 03/18 3.2.4
+* Twitter:
+  * Fix: 由于Twitter改版导致的获取用户时间线失效
+  * Style: 加上async标识
+
 ## 03/14 3.2.3
 * tweBBQ:
   * Style: 更新为ES6语法
