@@ -1,6 +1,6 @@
 {
   "name": "caster",
-  "version": "3.2.4",
+  "version": "3.2.5",
   "main": "index.js",
   "scripts": {
     "start": "pm2 start ecosystem.config.js",

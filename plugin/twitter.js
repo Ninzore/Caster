@@ -440,8 +440,7 @@ function checkTwiTimeline() {
 
 let stream_retry = 0;
 function stream() {
-    let time = new Date();
-    console.log("Twitter stream 开始连接", time.getHours(), time.getMinutes());
+    console.log("Twitter stream 开始连接");
     inStream = true;
 
     axios({
@@ -459,71 +458,75 @@ function stream() {
         }
     }).then(res => {
         try {
-            console.log("Twitter stream 已连接");
+            inStream = true;
             stream_retry = 0;
+            console.log("Twitter stream 已连接");
             const stream = res.data;
             stream.on("data", data => {
-                try {
-                    let text = data.toString();
-                    if (text.length < 3) ;
-                    else {
-                        const unserialised = JSON.parse(text);
-                        if (unserialised.data === undefined) {
-                            console.error("undefined data: ", text);
-                        }
-                        else {
-                            mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
-                                let tweet = await getSingleTweet(unserialised.data.id);
-
-                                const twe_sum = mongo.db('bot').collection('twe_sum');
-                                const summ = await twe_sum.find({}, {projection : {list : 0}}).toArray();
-                                await mongo.close();
-
-                                let summ_ = {};
-                                for (let group of summ) {
-                                    summ_[group.group_id] = group;
-                                }
-    
-                                const subscribe = subscribes[unserialised.includes.users[0].id];
-                                retweet(tweet, subscribe, options, summ_);
-                            });
-                        };
-                    }
-                }
-                catch(err) {
-                    let time = new Date();
-                    console.error("Twitter error happens during handling new tweet", time.getHours(), time.getMinutes(), err);
-                }
+                preRT(data);
             });
             stream.on("error", data => {
-                retry(`Twitter stream error: ${data.toString()}`, subscribes, options);
+                retry(`Twitter stream error: ${data.toString()}`);
             });
             stream.on("close", () => {
-                retry("Twitter stream closed 连接丢失", subscribes, options);
+                inStream = false;
+                retry("Twitter stream closed 连接丢失");
             });
         }
         catch(err) {
-            retry(err, subscribes, options);
+            retry(err);
         }
         
     }).catch(err => {
-        retry(err, subscribes, options);
+        retry(err);
     });
 }
 
-function retry(err, subscribes, options) {
-    let time = new Date();
-    console.error(time.getHours(), time.getMinutes());
+function retry(err) {
     if (typeof err === "object" && "response" in err) console.error("Twitter Stream connection failed with code ", err.response.status);
     else console.error(err);
     
-    if (stream_retry < 4) {
+    if (stream_retry < 3) {
         stream_retry ++;
-        setTimeout(() => stream(), 15000);
+        setTimeout(() => stream(), 5000);
     } else {
         inStream = false;
-        console.error("Twitter stream disconnected and out of retry times 断线");
-        replyFunc({user_id: global.config.bot.admin, message_type : "private"}, "Twitter stream 断线");
+        stream_retry = 0;
+        console.error("Twitter stream disconnected and out of retry times 断线，30秒后重连");
+        setTimeout(() => stream(), 30000);
+    }
+}
+
+async function preRT(streamData) {
+    try {
+        let text = streamData.toString();
+        if (text.length < 3) return;
+        const unserialised = JSON.parse(text);
+        if (unserialised.data === undefined && unserialised.errors) {
+            let error = unserialised.errors[0];
+            console.error(error.disconnect_type, error.detail);
+        }
+        else {
+            mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
+                let tweet = await getSingleTweet(unserialised.data.id);
+                if (!tweet) tweet = await getSingleTweet(unserialised.data.id);
+
+                const twe_sum = mongo.db('bot').collection('twe_sum');
+                const summ = await twe_sum.find({}, {projection : {list : 0}}).toArray();
+                await mongo.close();
+
+                let summ_ = {};
+                for (let group of summ) {
+                    summ_[group.group_id] = group;
+                }
+
+                const subscribe = subscribes[unserialised.includes.users[0].id];
+                retweet(tweet, subscribe, options, summ_);
+            });
+        };
+    }
+    catch(err) {
+        console.error("Twitter error happens during handling new tweet", err);
     }
 }
 
