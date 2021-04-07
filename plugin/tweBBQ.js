@@ -188,14 +188,14 @@ async function cook(context, twitter_url, trans_args={}) {
 
                 if (trans_args.article.quote != undefined) {
                     let quote_block = document.querySelector('.r-1bs4hfb');
-                    if (!quote_block) quote_block = document.querySelector('.css-1dbjc4n .css-1dbjc4n .css-1dbjc4n.r-1s2bzr4 .css-1dbjc4n [data-focusable]');
+                    if (!quote_block) quote_block = document.querySelector('.css-1dbjc4n .css-1dbjc4n .css-1dbjc4n.r-1s2bzr4 .css-1dbjc4n [role]');
                     quote_block.firstChild.children[1].querySelector("[lang]").innerHTML = html_ready.quote_html;
                 }
 
                 if (trans_args.article.choice != undefined) {
-                    let choice_list = document.querySelectorAll('section [role="button"][tabindex="0"] .r-eljoum');
+                    let choice_list = document.querySelectorAll('section [role="button"][tabindex="0"].r-gafmid');
                     for (let i = 0; i < trans_args.article.choice.length; i++) {
-                        choice_list[i].innerText = trans_args.article.choice[i];
+                        choice_list[i].firstChild.innerText = trans_args.article.choice[i];
                     }
                 }
 
@@ -263,7 +263,7 @@ async function cook(context, twitter_url, trans_args={}) {
             }, conversation);
         }
         
-        await page.waitFor(2000);
+        await page.waitForTimeout(2000);
         let tweet_box = await page.$('article .css-1dbjc4n .r-1r5su4o').then((tweet_article) => {
             if (tweet_article == null) return {
                 height : 600,
@@ -378,7 +378,7 @@ async function serialTweet(context, twitter_url, trans_args={}) {
             }
         }, html_ready, trans_args, tweet_id);
 
-        await page.waitFor(2000);
+        await page.waitForTimeout(2000);
         let box = await page.evaluate((html_ready) => {
             document.querySelector("#react-root").scrollIntoView(true);
             let articles = document.querySelectorAll('article');
