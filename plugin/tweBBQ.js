@@ -53,8 +53,7 @@ const BBQ_ARGS = {
 
 if (!fs.existsSync(STORAGEPATH)) fs.mkdir(STORAGEPATH);
 
-// console.log(msg)
-let replyFunc = (context, msg, at = false) => {console.log(msg)};
+let replyFunc = (context, msg, at = false) => {};
 
 function cookTweReply(replyMsg) {
     replyFunc = replyMsg;
@@ -643,20 +642,7 @@ function decoration(text, template, origin_text = "") {
 }
 
 function parseString(text, origin_text = false) {
-    text = text.replace(/&#91;/g, "[").replace(/&#93;/g, "]").replace(/&amp;/g, "&");
-
-    if (/\/u/.test(text) && origin_text != false) {
-        let ori = [...origin_text.matchAll(/([--:\w?@%&+~#=]*\.[a-z]{2,4}\/{0,2})((?:[?&](?:\w+)=(?:\w+))+|[--:\w?@%&+~#=]+)?/g)];
-        let replacement = text.match(/\/u/g);
-        if (ori != null && replacement != null) {
-            for (let i in replacement) {
-                if (i > ori.length -1) break;
-                ori[i][0] = ori[i][0].replace(/https?:\/\//, "");
-                text = text.replace(/\/u/, ori[i][0]);
-            }
-        }
-    }
-
+    text = text.replace(/&#91;/g, "[").replace(/&#93;/g, "]");
     if (/\/e/.test(text) && origin_text != false) {
         let ori = origin_text.match(TWEMOJI_GROUP_REG);
         let replacement = text.match(/\/e/g);
@@ -706,15 +692,27 @@ function parseString(text, origin_text = false) {
         }
     }
 
-    text = text.replace(/((#|@)\S+?)((?=[】\])\s\n])|<br>|$)/g,'<span style="color:#1DA1F2;">$1</span>')
-        .replace(/(([--:\w?@%&+~#=]*\.[a-z]{2,4}\/{0,2})((?:[?&](?:\w+)=(?:\w+))+|[--:\w?@%&+~#=]+)?)/g,'<span style="color:#1DA1F2;">$1</span>');
-
-    if (/[\s\/](\W{1,5})[x×*](\d{1,2})/.test(text)) {
+    if (/[\s\/](\W{1,5})[x×*]([0-9]{1,2})/.test(text)) {
         let repeat = [...text.matchAll(/[\s\/](.{1,5})[x×*](\d{1,2})/g)];
         for (let rpt of repeat) {
             text = text.replace(rpt[0], new Array(parseInt(rpt[2])+1).join(rpt[1]));
         }
     }
+
+    if (/\/u/.test(text) && origin_text != false) {
+        let ori = [...origin_text.matchAll(/([--:\w?@%&+~#=]*\.[a-z]{2,4}\/{0,2})((?:[?&](?:\w+)=(?:\w+))+|[--:\w?@%&+~#=]+)?/g)];
+        let replacement = text.match(/\/u/g);
+        if (ori != null && replacement != null) {
+            for (let i in replacement) {
+                if (i > ori.length -1) break;
+                ori[i][0] = ori[i][0].replace(/https?:\/\//, "");
+                text = text.replace(/\/u/, ori[i][0]);
+            }
+        }
+    }
+    
+    text = text.replace(/((#|@)\S+?)(?=([】\])\s@]|<br>|$))/g,'<span style="color:#1DA1F2;">$1</span>')
+        .replace(/(([--:\w?@%&+~#=]*\.[a-z]{2,4}\/{0,2})((?:[?&](?:\w+)=(?:\w+))+|[--:\w?@%&+~#=]+)?)/g,'<span style="color:#1DA1F2;">$1</span>');
 
     let capture = [...text.matchAll(TWEMOJI_REG)];
     let ready_html = "";

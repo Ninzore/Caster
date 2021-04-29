@@ -1,6 +1,6 @@
 {
   "name": "caster",
-  "version": "3.2.71",
+  "version": "3.2.8",
   "main": "index.js",
   "scripts": {
     "start": "pm2 start ecosystem.config.js",
@@ -29,6 +29,5 @@
     "puppeteer": "^5.5.0",
     "tencentcloud-sdk-nodejs": "^4.0.50"
   },
-  "devDependencies": {},
   "description": "Wecab汉化组特化型"
 }
