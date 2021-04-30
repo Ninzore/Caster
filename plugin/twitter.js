@@ -51,14 +51,6 @@ let replyFunc = (context, msg, at = false) => {};
 
 function twitterReply(replyMsg) {
     replyFunc = replyMsg;
-
-    mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(mongo => {
-        let coll = mongo.db('bot').collection('twe_sum');
-        try {
-            coll.updateOne({}, {$unset : {"today_done" : "", "today_all" : "", "today_raw" : ""}})
-                .then((err, res) => {mongo.close()});
-        } catch(err) {console.error(err);}
-    });
 }
 
 /** 检查网络情况，如果连不上Twitter那后面都不用做了*/
@@ -242,14 +234,15 @@ async function getSingleTweet(tweet_id_str) {
  async function getUserTimeline(user_id, count = 20, include_rt = 0, include_rp = 0) {
     return axios({
         method:'GET',
-        url: `https://twitter.com/i/api/2/timeline/profile/${user_id}.json`,
-        headers : httpHeader(),
+        url: "https://api.twitter.com/1.1/statuses/user_timeline.json",
+        headers : {"authorization" : BEARER_TOKEN},
         params : {
             // screen_name : screen_name,
-            "userId" : user_id,
+            "user_id" : user_id,
             "count" : count,
             "include_tweet_replies" : include_rp,
             "include_want_retweets" : include_rt,
+            "trim_user" : true,
             "tweet_mode" : "extended",
             "include_cards" : "1",
             "cards_platform" : "Web-12",
@@ -261,19 +254,9 @@ async function getSingleTweet(tweet_id_str) {
             "include_card_uri" : "true"
         }
     }).then(res => {
-        let tweets = [];
-        let user = res.data.globalObjects.users[user_id];
-        for (let tweetid of Object.keys(res.data.globalObjects.tweets)) {
-            let tweet = res.data.globalObjects.tweets[tweetid];
-            tweet.user = {name: user.name, screen_name: user.screen_name};
-
-            tweets.push(tweet);
-        }
-        
-        tweets = tweets.sort((a, b) => {return (a.id_str > b.id_str) ? -1 : 1;});
-        return tweets;
+        return res.data;
     }).catch(err => {
-        console.error("twitter getUserTimeline error: ", err);
+        console.error("twitter getUserTimeline error: ", err.response, err.config);
         return false;
     });
 }
@@ -912,7 +895,7 @@ async function addSub(name, option_nl, context) {
             else if (opt_inter == "notice") {
                 let people = opt_[1].trim();
                 if (!/\[CQ:at/.test(people)) {
-                    replyFunc(context, "你这提醒区怎么一个at都么有搞mea?", true);
+                    replyFunc(context, "没at上，重试", true);
                     return true;
                 }
                 option.notice = people;
