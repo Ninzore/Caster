@@ -102,8 +102,9 @@ async function cook(context, twitter_url, trans_args={}) {
             args : ['--no-sandbox', '--disable-dev-shm-usage']
         });
         let page = await browser.newPage();
+        await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.72 Safari/537.36");
         await page.setExtraHTTPHeaders({
-            "user-agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.163 Safari/537.36",
+            "sec-ch-ua" : '" Not A;Brand";v="99", "Chromium";v="90", "Google Chrome";v="90"',
             "accept-language" : "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,ja;q=0.6",
             "DNT" : "1"
         });
@@ -201,7 +202,7 @@ async function cook(context, twitter_url, trans_args={}) {
                 if (html_ready.reply_html != undefined && html_ready.reply_html.length > 0) {
                     for (let i = 0; i < html_ready.reply_html.length; i++) {
                         if (i + 1 >= articles.length) break;
-                        else if (html_ready.reply_html[i].length === 0) continue;
+                        else if (!html_ready.reply_html[i]) continue;
                         else {
                             article = articles[i+1].querySelector('[role=group]').parentElement;
                 
@@ -221,18 +222,19 @@ async function cook(context, twitter_url, trans_args={}) {
                     node_group_info.innerHTML = group_html;
                     node_trans_article.innerHTML = translation_html;
                 
-                    if (/^回复 \n@/.test(article.firstElementChild.innerText)) article = article.children[1].firstElementChild;
-                    else article = article.firstElementChild.firstElementChild;
-                    if (article == null) return;
+                    let text_node = false;
+                    if (/^回复 \n@/.test(article.firstChild.innerText)) text_node = article.children[1].firstChild;
+                    else text_node = article.firstChild.firstChild;
+                    if (!text_node) return;
 
-                    node_trans_article.className = article.firstElementChild.className;
+                    node_trans_article.className = text_node.firstChild.className;
                     node_trans_article.style.width = "100%";
 
                     trans_place.appendChild(node_group_info);
                     trans_place.appendChild(node_trans_article);
 
-                    if (cover_origin) article.firstElementChild.replaceWith(trans_place);
-                    else article.appendChild(trans_place);
+                    if (cover_origin) text_node.firstChild.replaceWith(trans_place);
+                    else text_node.appendChild(trans_place);
                 }
                 document.querySelector("#react-root").scrollIntoView(true);
             }, html_ready, trans_args, conversation);
@@ -262,7 +264,7 @@ async function cook(context, twitter_url, trans_args={}) {
             }, conversation);
         }
         
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(500);
         let tweet_box = await page.$('article .css-1dbjc4n .r-1r5su4o').then((tweet_article) => {
             if (tweet_article == null) return {
                 height : 600,
@@ -1148,8 +1150,8 @@ function seasoning(context, id = "") {
 
         findTemplate(username, context.group_id).then(saved_trans_args => {
             if (!saved_trans_args) saved_trans_args = JSON.parse(JSON.stringify(defaultTemplate));
-            if (/^(\s|[>＞]{2}|<br>)/.test(text)) {
-                let starter = /^(\s|[>＞]{2}|<br>)/.exec(text);
+            if (/^(\s|[>＞]{1,2}|<br>)/.test(text)) {
+                text = text.replace(/^(\s|[>＞]{1,2}|<br>)/, "").trim();
                 text = text.substring(starter[1].length).trim().replace(/^<br>/, "");
                 saved_trans_args.article.origin = text;
                 storeRecentTranslation(context.group_id, twitter_url, tweet_id, id, saved_trans_args);
