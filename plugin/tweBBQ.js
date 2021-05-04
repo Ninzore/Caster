@@ -114,6 +114,22 @@ async function cook(context, twitter_url, trans_args={}) {
 
         await page.click('.r-tm2x56 [role=button]').catch(err => {});
 
+        let init_size = await page.evaluate(() => {
+            let buttom = document.querySelector('article .css-1dbjc4n .r-1r5su4o');
+            buttom.scrollIntoView();
+            let top = document.querySelector('body');
+            top.scrollIntoView();
+            let {x, y, height, width} = buttom.getBoundingClientRect();
+            
+            return {x, y, height, width}
+        });
+        await page.setViewport({
+            width : 800,
+            height : Math.round(init_size.y) + 500,
+            deviceScaleFactor: 1.6
+        });
+        await page.waitForTimeout(500);
+
         if (trans_args && Object.keys(trans_args).length > 0) {
             await page.evaluate((html_ready, trans_args, conversation) => {
                 let banner = document.getElementsByTagName('header')[0];
@@ -265,20 +281,8 @@ async function cook(context, twitter_url, trans_args={}) {
         }
         
         await page.waitForTimeout(500);
-        let tweet_box = await page.$('article .css-1dbjc4n .r-1r5su4o').then((tweet_article) => {
-            if (tweet_article == null) return {
-                height : 600,
-                width : 600,
-                x : 15,
-                y : 0
-            }
-            return tweet_article.boundingBox();
-        });
-    
-        await page.setViewport({
-            width: 800,
-            height: Math.round(tweet_box.y + 200),
-            deviceScaleFactor: 1.6
+        let tweet_box = await page.$('article .css-1dbjc4n .r-1r5su4o').then(buttom => {
+            return buttom.boundingBox();
         });
 
         let img_path = path.join(STORAGEPATH, `${tweet_id}.jpg`);
@@ -286,7 +290,7 @@ async function cook(context, twitter_url, trans_args={}) {
             type : "jpeg",
             quality : 100,
             path : img_path,
-            clip : {x : tweet_box.x - 15, y : -2, width : tweet_box.width + 27, height : tweet_box.y + tweet_box.height + 12}
+            clip : {x : 2, y : 0, width : tweet_box.width + 25, height : tweet_box.y + tweet_box.height + 8}
         }).then(() => {
             replyFunc(context, `[CQ:image,file=file:///${img_path}]`);
         });
