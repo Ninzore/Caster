@@ -2,6 +2,12 @@
 
 ## 2021
 
+## 05/06 3.3.0
+* TweBBQ:
+  * Feat: 队列
+* package.json:
+  * Update
+
 ## 05/04 3.2.91
 * TweBBQ:
   * Fix: 推文过长时可能会出错

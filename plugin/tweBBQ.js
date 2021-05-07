@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs-extra";
 import marshmallow from "./marshmallow";
 import twitter from "./twitter";
+import {Waithere} from "waithere"
 
 const DB_PORT = 27017;
 const DB_PATH = "mongodb://127.0.0.1:" + DB_PORT;
@@ -15,6 +16,7 @@ const TWEMOJI_GROUP_REG = new RegExp(`(${TWEMOJI})+`, "g");
 const config = global.config.bbq;
 const defaultTemplate = config.defaultTemplate;
 const STORAGEPATH = config.storagePath;
+const queue = new Waithere(2); 
 
 let connection = true;
 
@@ -1196,7 +1198,12 @@ function seasoning(context, id = "") {
                 }
                 else {
                     storeRecentTranslation(context.group_id, twitter_url, tweet_id, id, trans_args);
-                    cook(context, twitter_url, trans_args);
+                    // cook(context, twitter_url, trans_args);
+                    queue.add(cook, context, twitter_url, trans_args);
+                    if (queue.jobRemain() <= 1) queue.do();
+                    else {
+                        replyFunc(context, `你前面还有${queue.jobRemain() - 1}个人`);
+                    }
                 }
             }
             else {
