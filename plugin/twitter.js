@@ -163,7 +163,7 @@ function getGuestToken() {
         url : "https://api.twitter.com/1.1/guest/activate.json",
         headers : headers
     }).then(res => {guest_token = res.data.guest_token;}
-    ).catch(err => console.error("Twitter getGuestToken error ", err.response.status, err.response.statusText))
+    ).catch(err => console.error("Twitter getGuestToken error ", err.response.status, err.response.statusText));
 }
 
 /** 获取一个cookie，后面要用*/
@@ -284,7 +284,7 @@ async function searchUser(name) {
     }).catch(err => {
         console.error("Twitter searchUser error\n", err.response.status, err.response.statusText);
         return false;
-    })
+    });
 }
 
 /**
@@ -380,7 +380,7 @@ function unSubscribe(name, context) {
     }).catch(err => console.error(err + "Twitter unsubscribe error, uid= " + uid));
 }
 
-
+let summ = [];
 /**
  * 每过x分钟检查一次订阅列表，如果订阅一个Twitter账号的群的数量是0就删除
  */
@@ -405,17 +405,12 @@ function checkTwiTimeline() {
             options[group.group_id] = group.twitter;
         }
 
-        // if (subscribes.length > 0 && options.length > 0) {
-        //     i = 0;
-        //     checkEach();
-        // }
-        // else if (subscribes.length < 1 || options.length < 1) {
-        //     console.error("twitter subs less than 1");
-        // }
-        // else if (subscribes == undefined || options == undefined) {
-        //     subscribes = await twitter_db.find({}).toArray();
-        //     subscribes != undefined ? checkEach() : console.error("twitter database error");
-        // }
+        mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
+            const twe_sum = mongo.db('bot').collection('twe_sum');
+            summ = await twe_sum.find({}, {projection : {list : 0}}).toArray();
+            await mongo.close();
+        });
+
         if (!inStream) stream();
         await mongo.close();
     });
@@ -490,22 +485,25 @@ async function preRT(streamData) {
             console.error(error.disconnect_type, error.detail);
         }
         else {
-            mongodb(DB_PATH, {useUnifiedTopology: true}).connect().then(async mongo => {
-                let tweet = await getSingleTweet(unserialised.data.id);
-                if (!tweet) tweet = await getSingleTweet(unserialised.data.id);
+            let tweet = await getSingleTweet(unserialised.data.id);
+            if (!tweet) tweet = await getSingleTweet(unserialised.data.id);
+            const subscribe = subscribes[unserialised.includes.users[0].id];
 
-                const twe_sum = mongo.db('bot').collection('twe_sum');
-                const summ = await twe_sum.find({}, {projection : {list : 0}}).toArray();
-                await mongo.close();
-
-                let summ_ = {};
-                for (let group of summ) {
-                    summ_[group.group_id] = group;
-                }
-
-                const subscribe = subscribes[unserialised.includes.users[0].id];
-                retweet(tweet, subscribe, options, summ_);
+            let mongo = await mongodb(DB_PATH, {useUnifiedTopology: true}).connect().catch(err => {
+                return false;
             });
+
+            if (mongo) {
+                const twe_sum = mongo.db('bot').collection('twe_sum');
+                summ = await twe_sum.find({}, {projection : {list : 0}}).toArray();
+                await mongo.close();
+            }
+
+            let summ_ = {};
+            for (let group of summ) {
+                summ_[group.group_id] = group;
+            }
+            retweet(tweet, subscribe, options, summ_);
         };
     }
     catch(err) {
@@ -560,7 +558,6 @@ async function retweet(tweet, subscribe, options, summ) {
                         bbq_url = url;
                     }
                 }
-                updateTwitter(tweet, bbq_group, bbq_url, subscribe, count);
 
                 addon.push(url);
                 const context = {group_id : group_id, message_type : "group"};
@@ -568,6 +565,7 @@ async function retweet(tweet, subscribe, options, summ) {
                     payload += `\n\n${addon.join("\n")}`
                     replyFunc(context, payload);
                 }).catch(err => console.error(err));
+                updateTwitter(tweet, bbq_group, bbq_url, subscribe, count);
             }
         }
     }
@@ -649,13 +647,13 @@ function checkSubs(context) {
         for (let sub in options.twitter) {
             let name = options.twitter[sub].name;
             let option_nl = toOptNl(options.twitter[sub]);
-            subs.push(`${name}，模式为${option_nl}`)
+            subs.push(`${name}，模式为${option_nl}`);
         }
         if (subs.length < 1) {
             replyFunc(context, "你一无所有", true);
         }
         else {
-            replyFunc(context, `本群已订阅:\n${subs.join("\n")}`)
+            replyFunc(context, `本群已订阅:\n${subs.join("\n")}`);
         }
         mongo.close();
     }).catch(err => console.error(err + "\n Twitter checkSubs error, group_id= " + group_id));
@@ -730,7 +728,7 @@ async function format(tweet, end_point = false, context = false) {
                                             }
                                             else pics += `这是一张动图 [CQ:image,cache=0,file=${media[i].media_url_https}]` + `动起来看这里${media[i].video_info.variants[0].url}`;
                                         }
-                                    })
+                                    });
                             } catch(err) {
                                 console.error(err);
                                 pics += `这是一张动图 [CQ:image,cache=0,file=${media[i].media_url_https}]` + `动起来看这里${media[i].video_info.variants[0].url}`;
@@ -776,7 +774,7 @@ async function format(tweet, end_point = false, context = false) {
                 }
     
                 let end_time = new Intl.DateTimeFormat('zh-Hans-CN', {month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai'})
-                    .format(new Date(tweet.card.binding_values.end_datetime_utc.string_value))
+                    .format(new Date(tweet.card.binding_values.end_datetime_utc.string_value));
                 payload.push("", tweet.card.binding_values.counts_are_final.boolean_value === true ? "投票已结束" 
                     : `正在投票,结束时间${end_time}`);
                 let nchoice = parseInt(/\d/.exec(tweet.card.name)[0]);
@@ -795,7 +793,7 @@ async function format(tweet, end_point = false, context = false) {
                     }
                     else payload.push(`[CQ:image,cache=0,file=${tweet.card.binding_values.photo_image_full_size_large.image_value.url}]`);
                 }
-                if ("title" in tweet.card.binding_values) payload.push(tweet.card.binding_values.title.string_value)
+                if ("title" in tweet.card.binding_values) payload.push(tweet.card.binding_values.title.string_value);
                 if ("description" in tweet.card.binding_values) payload.push(tweet.card.binding_values.description.string_value);
             }
         }
@@ -946,19 +944,19 @@ function twitterAggr(context) {
         let option_nl = /[>＞](?<option_nl>.{2,})/.exec(context.message)[1];
         if (option_nl == undefined) option_nl = "仅原创"
         addSub(name, option_nl, context);
-        replyFunc(context, "目前新增订阅和取消订阅均已失效，联系管理员")
+        replyFunc(context, "目前新增订阅和取消订阅均已失效，联系管理员");
         return true;
     }
     else if (connection && /^订阅.+的?(推特|Twitter)([>＞](?<option_nl>.{2,}))?/i.test(context.message)) {
         let {groups : {name, option_nl}} = /订阅(?<name>.+)的?(推特|Twitter)([>＞](?<option_nl>.{2,}))?/i.exec(context.message);
         addSub(name, option_nl, context);
-        replyFunc(context, "目前新增订阅和取消订阅均已失效，联系管理员")
+        replyFunc(context, "目前新增订阅和取消订阅均已失效，联系管理员");
         return true;
     }
     else if (/^取消订阅.+的?(推特|Twitter)$/i.test(context.message)) {
         let name = /取消订阅(.+)的?(推特|Twitter)/i.exec(context.message)[1];
         unSubscribe(name, context);
-        replyFunc(context, "目前新增订阅和取消订阅均已失效，联系管理员")
+        replyFunc(context, "目前新增订阅和取消订阅均已失效，联系管理员");
         return true;
     }
     else if (/^查看(推特|Twitter)订阅$/i.test(context.message)) {
