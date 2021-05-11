@@ -1255,8 +1255,8 @@ function checkPermission(context) {
 }
 
 function complex(context) {
-    if (connection && /^(推特|Twitter)?截图\s?https:\/\/twitter.com\/.+?\/status\/\d{19}/i.test(context.message)) {
-        let twitter_url = /https:\/\/twitter.com\/.+?\/status\/\d{19}/i.exec(context.message)[0];
+    if (connection && /^(推特|Twitter)?截图\s?https:\/\/twitter.com\/.+?\/status\/\d{18,19}/i.test(context.message)) {
+        let twitter_url = /https:\/\/twitter.com\/.+?\/status\/\d{18,19}/i.exec(context.message)[0];
         cook(context, twitter_url);
         return true;
     }
@@ -1264,7 +1264,7 @@ function complex(context) {
         prepare(context);
         return true;
     }
-    else if (connection && /^烤制\s?https:\/\/twitter.com\/.+?\/status\/\d{19}(?:\?s=\d{1,2})?\s?([>＞]{1,2}|\s|\r\n)/i.test(context.message)) {
+    else if (connection && /^烤制\s?https:\/\/twitter.com\/.+?\/status\/\d{18,19}(?:\?s=\d{1,2})?\s?([>＞]{1,2}|\s|\r\n)/i.test(context.message)) {
         seasoning(context);
         return true;
     }
@@ -1282,11 +1282,11 @@ function complex(context) {
         serveRare(context);
         return true;
     }
-    else if (/^(来碗)?饭(\d{1,4}|https:\/\/twitter.com\/.+?\/status\/\d{19}(?:\?s=\d{1,2})?)$/.test(context.message)) {
+    else if (/^(来碗)?饭(\d{1,4}|https:\/\/twitter.com\/.+?\/status\/\d{18,19}(?:\?s=\d{1,2})?)$/.test(context.message)) {
         serveMedium(context);
         return true;
     }
-    else if (/^(来片)?锅巴(\d{1,4}|https:\/\/twitter.com\/.+?\/status\/\d{19}(?:\?s=\d{1,2})?)$/.test(context.message)) {
+    else if (/^(来片)?锅巴(\d{1,4}|https:\/\/twitter.com\/.+?\/status\/\d{18,19}(?:\?s=\d{1,2})?)$/.test(context.message)) {
         serveDone(context);
         return true;
     }

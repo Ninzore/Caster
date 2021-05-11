@@ -2,6 +2,10 @@
 
 ## 2021
 
+## 05/11 3.3.11
+* TweBBQ:
+  * Fix: 支持很久以前的18位tweet id
+
 ## 05/08 3.3.1
 * Twitter:
   * Feat: 在MongoDB断线时仍然保持推送
